@@ -300,10 +300,10 @@ public class PathGuiMain extends JFrame {
         private void tickAnim() {
             if (!animPlaying) return;
             if (animPath == null) { playAnim(); if (animPath == null) return; }
-            // Step the Path's internal profile forward. Use the current simulated heading
-            // as the "robot rotation" so the rotation profile's angle-unwrap works sanely.
-            Setpoint next = animPath.calculate(animSimTheta, DT_ANIM);
-            // Treat returned setpoint as the commanded pose — simulate perfect tracking.
+            // Pose-based follower: feed the simulated pose into calculate(). Under perfect
+            // tracking the returned setpoint becomes our next simulated pose.
+            Pose2d simPose = new Pose2d(animSimX, animSimY, new Rotation2d(animSimTheta));
+            Setpoint next = animPath.calculate(simPose, DT_ANIM);
             animSimX = next.x;
             animSimY = next.y;
             animSimTheta = next.theta;

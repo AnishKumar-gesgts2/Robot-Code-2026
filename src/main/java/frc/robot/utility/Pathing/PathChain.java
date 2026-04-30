@@ -4,6 +4,7 @@ import frc.robot.utility.Setpoint;
 import frc.robot.utility.Pathing.profile.VelocityProfile;
 
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.math.trajectory.TrapezoidProfile.State;
@@ -95,23 +96,58 @@ public class PathChain {
     public double getTotalLength() { return totalLength; }
     public Path getSegment(int i) { return segments[i]; }
 
-    public Setpoint calculate(double currentRotation, double dt) {
-        double vPlanned = jointProfile.velocityAt(currentArc);
-        currentArc = Math.min(currentArc + vPlanned * dt, totalLength);
-        double commandedVelocity = jointProfile.velocityAt(currentArc);
+    /** Pose-based follower over the full chain. Projects the robot onto each segment
+     *  (respecting monotone progress across the whole chain), then commands a lookahead
+     *  point v·dt ahead on the joint velocity profile. Rotation: time-based trapezoidal
+     *  between chain start heading and end heading. */
+    public Setpoint calculate(Pose2d robotPose, double dt) {
+        // 1. Closest-point projection across all segments. Start searching from whichever
+        //    segment contains currentArc — monotonicity means we never revisit earlier ones.
+        int startSeg = segments.length - 1;
+        for (int i = 0; i < segments.length; i++) {
+            if (currentArc <= segmentOffsets[i] + segments[i].getArcLength() - 1e-6) {
+                startSeg = i; break;
+            }
+        }
 
-        // Locate the active segment.
+        double bestArc = currentArc;
+        double bestDist2 = Double.POSITIVE_INFINITY;
+        for (int i = startSeg; i < segments.length; i++) {
+            double localMin = (i == startSeg)
+                    ? Math.max(0.0, currentArc - segmentOffsets[i])
+                    : 0.0;
+            double localArc = segments[i].getSampler().closestArc(
+                    robotPose.getX(), robotPose.getY(), localMin);
+            double globalArc = segmentOffsets[i] + localArc;
+            // Evaluate distance at that projected point.
+            double t = segments[i].getTimeForArcLength(localArc);
+            Translation2d p = segments[i].calculatePosition(t);
+            double dx = p.getX() - robotPose.getX();
+            double dy = p.getY() - robotPose.getY();
+            double d2 = dx * dx + dy * dy;
+            if (d2 < bestDist2) { bestDist2 = d2; bestArc = globalArc; }
+        }
+        currentArc = bestArc;
+
+        // 2. Lookahead.
+        double vPlanned = jointProfile.velocityAt(currentArc);
+        double targetArc = Math.min(currentArc + vPlanned * dt, totalLength);
+        double commandedVelocity = jointProfile.velocityAt(targetArc);
+
+        // 3. Resolve target segment + local arc.
         int seg = segments.length - 1;
         for (int i = 0; i < segments.length; i++) {
-            double segEnd = segmentOffsets[i] + segments[i].getArcLength();
-            if (currentArc <= segEnd - 1e-6) { seg = i; break; }
+            if (targetArc <= segmentOffsets[i] + segments[i].getArcLength() - 1e-6) {
+                seg = i; break;
+            }
         }
-        double localArc = Math.min(currentArc - segmentOffsets[seg], segments[seg].getArcLength());
-        double timeParam = segments[seg].getTimeForArcLength(localArc);
+        double localTarget = Math.min(targetArc - segmentOffsets[seg], segments[seg].getArcLength());
+        double timeParam = segments[seg].getTimeForArcLength(localTarget);
         Translation2d target = segments[seg].calculatePosition(timeParam);
         Translation2d tangent = segments[seg].getNormalizedVelocityVector(timeParam);
 
-        // Rotation
+        // 4. Rotation.
+        double currentRotation = robotPose.getRotation().getRadians();
         double errorToGoal = MathUtil.angleModulus(endRotation.position - currentRotation);
         double errorToSetpoint = MathUtil.angleModulus(startRotation.position - currentRotation);
         endRotation.position = currentRotation + errorToGoal;
@@ -128,4 +164,7 @@ public class PathChain {
                 tangent.getY() * commandedVelocity,
                 rotSetpoint.velocity);
     }
+
+    public double getCurrentArc() { return currentArc; }
+    public void resetProgress() { this.currentArc = 0.0; }
 }
