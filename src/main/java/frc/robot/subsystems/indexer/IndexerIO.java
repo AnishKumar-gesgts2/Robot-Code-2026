@@ -7,11 +7,16 @@ public interface IndexerIO {
     public static class IndexerIOInputs {
         public double appliedVolts = 0.0;
         public double currentAmps = 0.0;
+        public double floorRPM = 0.0;
+        public double tunnelRPM = 0.0;
     }
 
     default void updateInputs(IndexerIOInputs inputs) {}
 
-    default void setSpeed(double speed) {}
+    /** Independent mechanism-side speed targets. Zero stops the respective motor. */
+    default void setFloorRPM(double rpm) {}
+
+    default void setTunnelRPM(double rpm) {}
 
     default void stop() {}
 }

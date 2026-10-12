@@ -373,8 +373,8 @@ public final class Constants {
     public static final double PASS_RPM = 1600.0; 
     /** 12T motor gear drives the 18T flywheel gear, so flywheel speed = motor speed * 12/18. */
     public static final double FLYWHEEL_GEAR_RATIO = 12.0 / 18.0;
-    public static final double FLYWHEEL_IDLE_RPM = 500; //kraken x60 
-    /** Temporary no-vision shot speed commanded while the driver holds right trigger. */
+    public static final double FLYWHEEL_IDLE_RPM = 1000;
+    /** Temporary no-vision shot speed commanded while the driver holds right bumper. */
     public static final double FIXED_SHOT_RPM = 3000.0;
     public static final double FLYWHEEL_RPM_TOLERANCE = 200.0; 
 
@@ -537,6 +537,17 @@ public final class Constants {
     // Wire protection thresholds - prefer unwinding toward center when outside these bounds
     public static final double WIRE_PROTECTION_LOWER = -100.0;
     public static final double WIRE_PROTECTION_UPPER = 270.0;
+  }
+
+  public static final class IndexerConstants {
+    public static final double FLOOR_RUNNING_RPM = 1000.0;
+    public static final double TUNNEL_RUNNING_RPM = 1500.0;
+    /** Motor rotations per mechanism rotation; retained from the indexer hardware configuration. */
+    public static final double FLOOR_GEAR_RATIO = 2.5;
+    public static final double TUNNEL_GEAR_RATIO = 5.0 / 3.0;
+    /** Initial velocity gains, in volts per mechanism RPS and volts per motor RPS respectively. */
+    public static final double VELOCITY_KP = 0.25;
+    public static final double MOTOR_KV = 0.12;
   }
 
   public static final class IntakeConstants {

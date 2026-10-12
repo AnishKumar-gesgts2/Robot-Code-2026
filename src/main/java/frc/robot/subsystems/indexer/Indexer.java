@@ -1,6 +1,5 @@
 package frc.robot.subsystems.indexer;
 
-import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import org.littletonrobotics.junction.Logger;
 import org.littletonrobotics.junction.mechanism.LoggedMechanism2d;
@@ -19,7 +18,8 @@ public class Indexer extends SubsystemBase {
             new LoggedMechanismLigament2d("Roller", 0.75, 0.0));
 
     private double rollerAngleDegrees = 0.0;
-    private double commandedSpeed = 0.0;
+    private double floorTargetRPM = 0.0;
+    private double tunnelTargetRPM = 0.0;
 
     public Indexer(IndexerIO io) {
         this.io = io;
@@ -29,6 +29,8 @@ public class Indexer extends SubsystemBase {
     public void periodic() {
         io.updateInputs(inputs);
         Logger.processInputs("Indexer", inputs);
+        Logger.recordOutput("Indexer/FloorTargetRPM", floorTargetRPM);
+        Logger.recordOutput("Indexer/TunnelTargetRPM", tunnelTargetRPM);
 
         rollerAngleDegrees += inputs.appliedVolts / 12.0
                 * MAX_VISUALIZER_SPEED_DEGREES_PER_SECOND
@@ -37,17 +39,27 @@ public class Indexer extends SubsystemBase {
         Logger.recordOutput("Indexer/Mechanism", mech2d);
     }
 
-    public void runIndexer(double speed) {
-        commandedSpeed = MathUtil.clamp(speed, -1.0, 1.0);
-        io.setSpeed(commandedSpeed);
+    public void setFloorRPM(double rpm) {
+        floorTargetRPM = rpm;
+        io.setFloorRPM(rpm);
+    }
+
+    public void setTunnelRPM(double rpm) {
+        tunnelTargetRPM = rpm;
+        io.setTunnelRPM(rpm);
     }
 
     public void stop() {
-        commandedSpeed = 0.0;
+        floorTargetRPM = 0.0;
+        tunnelTargetRPM = 0.0;
         io.stop();
     }
 
-    public double getCommandedSpeed() {
-        return commandedSpeed;
+    public double getFloorTargetRPM() {
+        return floorTargetRPM;
+    }
+
+    public double getTunnelTargetRPM() {
+        return tunnelTargetRPM;
     }
 }
