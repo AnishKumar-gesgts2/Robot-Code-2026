@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
+import edu.wpi.first.wpilibj.simulation.RoboRioSim;
 import frc.robot.Constants.ShooterConstants;
 
 class ShooterTest {
@@ -24,6 +25,7 @@ class ShooterTest {
 
     @BeforeEach
     void enable() {
+        RoboRioSim.setVInVoltage(12.0);
         DriverStationSim.setDsAttached(true);
         DriverStationSim.setEnabled(true);
         DriverStationSim.setAutonomous(false);
@@ -32,6 +34,7 @@ class ShooterTest {
 
     @AfterEach
     void reset() {
+        RoboRioSim.setVInVoltage(12.0);
         DriverStationSim.resetData();
         DriverStationSim.notifyNewData();
     }
@@ -86,6 +89,25 @@ class ShooterTest {
 
         assertFalse(shooter.atTarget());
         assertEquals(ShooterConstants.FLYWHEEL_IDLE_RPM, shooter.getCurrentRPM(), 150.0);
+    }
+
+    @Test
+    void returnsToIdleAfterShotEvenWhenBatterySags() {
+        Shooter shooter = new Shooter(new ShooterIOSim());
+        shooter.setGoal(SHOT_RPM);
+        step(shooter, 150);
+        assertEquals(SHOT_RPM, shooter.getSetpointRPM(), 1.0);
+
+        // Below the shot-speed back-EMF: no positive acceleration is available,
+        // but that must not freeze the downward ramp when the bumper is released.
+        RoboRioSim.setVInVoltage(8.0);
+        shooter.setIdle();
+        step(shooter, 1);
+        assertTrue(shooter.getSetpointRPM() < SHOT_RPM);
+        step(shooter, 150);
+        assertEquals(ShooterConstants.FLYWHEEL_IDLE_RPM, shooter.getSetpointRPM(), 1.0);
+        assertEquals(ShooterConstants.FLYWHEEL_IDLE_RPM, shooter.getCurrentRPM(), 150.0);
+        assertFalse(shooter.atTarget());
     }
 
     @Test

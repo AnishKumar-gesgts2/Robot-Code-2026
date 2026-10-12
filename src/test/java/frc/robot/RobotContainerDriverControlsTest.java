@@ -73,8 +73,16 @@ class RobotContainerDriverControlsTest {
         setControls(true, true);
         setControls(false, true);
         assertTargets(shooter, indexer, 1000.0, 0.0, 1500.0);
+        runCycles(150);
+        assertEquals(1000.0, shooter.getCurrentRPM(), 150.0);
+        // Also verify a bumper-only hold/release settles back to measured idle speed.
+        setControls(true, false);
+        runCycles(150);
+        assertEquals(3000.0, shooter.getCurrentRPM(), 200.0);
         setControls(false, false);
         assertTargets(shooter, indexer, 1000.0, 0.0, 0.0);
+        runCycles(150);
+        assertEquals(1000.0, shooter.getCurrentRPM(), 150.0);
 
         // Trigger alone feeds without changing the shooter's idle goal.
         setControls(false, true);

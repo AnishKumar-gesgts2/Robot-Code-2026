@@ -200,16 +200,26 @@ public class Shooter extends SubsystemBase {
                 / ShooterConstants.FLYWHEEL_MOI;
         maxAccelFromCurrent = MathUtil.clamp(maxAccelFromCurrent, 0.0, ShooterConstants.FLYWHEEL_MAX_ACCELERATION);
 
-        // Walk the setpoint toward the goal.
-        double maxStep = maxAccelFromCurrent * LOOP_PERIOD_SECS;
+        // Slowing down must not depend on available positive acceleration. At low battery
+        // voltage the spin-up ceiling can be zero above the achievable free speed; using
+        // it for deceleration would latch the old high setpoint after returning to idle.
         double error = goal - setpointRadsPerSec;
+        double rampAcceleration = maxAccelFromCurrent;
+        if (error < 0.0) {
+            double brakingCurrent = ShooterConstants.FLYWHEEL_STATOR_CURRENT_LIMIT
+                * ShooterConstants.FLYWHEEL_MOTOR_COUNT;
+            rampAcceleration = Math.min(ShooterConstants.FLYWHEEL_MAX_ACCELERATION,
+                gearbox.getTorque(brakingCurrent) / ShooterConstants.FLYWHEEL_MOI);
+        }
+        // Walk the setpoint toward the goal; hardware still enforces current limits.
+        double maxStep = rampAcceleration * LOOP_PERIOD_SECS;
         double rawAccel;
         if (Math.abs(error) <= maxStep) {
             setpointRadsPerSec = goal;
             rawAccel = error / LOOP_PERIOD_SECS;
         } else {
             setpointRadsPerSec += Math.copySign(maxStep, error);
-            rawAccel = Math.copySign(maxAccelFromCurrent, error);
+            rawAccel = Math.copySign(rampAcceleration, error);
         }
         // The limiter's implied acceleration is a square wave; low-pass it before it hits kA.
         if (!nonZeroAccel) {
