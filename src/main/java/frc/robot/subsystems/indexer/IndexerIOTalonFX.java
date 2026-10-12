@@ -3,8 +3,10 @@ package frc.robot.subsystems.indexer;
 import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.CANBus;
 import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.StatusCode;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.VelocityVoltage;
+import com.ctre.phoenix6.controls.NeutralOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
@@ -23,6 +25,9 @@ public class IndexerIOTalonFX implements IndexerIO {
 
     private final VelocityVoltage floorRequest = new VelocityVoltage(0.0);
     private final VelocityVoltage tunnelRequest = new VelocityVoltage(0.0);
+    private final NeutralOut floorStopRequest = new NeutralOut();
+    private final StatusCode floorConfigurationStatus;
+    private String floorControlStatus = "No request";
 
     private final StatusSignal<Angle> floorPosition;
     private final StatusSignal<AngularVelocity> floorVelocity;
@@ -47,7 +52,7 @@ public class IndexerIOTalonFX implements IndexerIO {
         floorLeader = new TalonFX(floorLeaderId, canBus);
         tunnelMotor = new TalonFX(tunnelMotorId, canBus);
 
-        configureMotor(floorLeader, IndexerConstants.FLOOR_GEAR_RATIO);
+        floorConfigurationStatus = configureMotor(floorLeader, IndexerConstants.FLOOR_GEAR_RATIO);
         configureMotor(tunnelMotor, IndexerConstants.TUNNEL_GEAR_RATIO);
 
         floorPosition = floorLeader.getPosition();
@@ -75,7 +80,7 @@ public class IndexerIOTalonFX implements IndexerIO {
         tunnelMotor.optimizeBusUtilization();
     }
 
-    private static void configureMotor(TalonFX motor, double gearRatio) {
+    private static StatusCode configureMotor(TalonFX motor, double gearRatio) {
         TalonFXConfiguration config = new TalonFXConfiguration();
         config.Feedback.SensorToMechanismRatio = gearRatio;
         config.Slot0.kP = IndexerConstants.VELOCITY_KP;
@@ -84,7 +89,11 @@ public class IndexerIOTalonFX implements IndexerIO {
         config.CurrentLimits.StatorCurrentLimitEnable = true;
         config.CurrentLimits.SupplyCurrentLimit = CURRENT_LIMIT_AMPS;
         config.CurrentLimits.SupplyCurrentLimitEnable = true;
-        motor.getConfigurator().apply(config);
+        StatusCode status = motor.getConfigurator().apply(config, 0.1);
+        for (int attempt = 1; attempt < 3 && !status.isOK(); attempt++) {
+            status = motor.getConfigurator().apply(config, 0.1);
+        }
+        return status;
     }
 
     @Override
@@ -103,6 +112,11 @@ public class IndexerIOTalonFX implements IndexerIO {
         inputs.floorRPM = floorVelocity.getValueAsDouble() * 60.0;
         inputs.tunnelRPM = tunnelVelocity.getValueAsDouble() * 60.0;
         inputs.currentAmps = floorLeaderCurrent.getValueAsDouble() + tunnelCurrent.getValueAsDouble();
+        inputs.floorConnected = floorLeader.isConnected();
+        inputs.floorAppliedVolts = floorVoltage.getValueAsDouble();
+        inputs.floorCurrentAmps = floorLeaderCurrent.getValueAsDouble();
+        inputs.floorConfigurationStatus = floorConfigurationStatus.toString();
+        inputs.floorControlStatus = floorControlStatus;
 
         Logger.recordOutput("Indexer/Connected/FloorLeader", floorLeader.isConnected());
         Logger.recordOutput("Indexer/Connected/TunnelMotor", tunnelMotor.isConnected());
@@ -111,9 +125,9 @@ public class IndexerIOTalonFX implements IndexerIO {
     @Override
     public void setFloorRPM(double rpm) {
         if (rpm == 0.0) {
-            floorLeader.stopMotor();
+            floorControlStatus = floorLeader.setControl(floorStopRequest).toString();
         } else {
-            floorLeader.setControl(floorRequest.withVelocity(rpm / 60.0));
+            floorControlStatus = floorLeader.setControl(floorRequest.withVelocity(rpm / 60.0)).toString();
         }
     }
 
@@ -128,7 +142,7 @@ public class IndexerIOTalonFX implements IndexerIO {
 
     @Override
     public void stop() {
-        floorLeader.stopMotor();
+        setFloorRPM(0.0);
         tunnelMotor.stopMotor();
     }
 }

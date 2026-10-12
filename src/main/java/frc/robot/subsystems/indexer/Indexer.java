@@ -1,6 +1,7 @@
 package frc.robot.subsystems.indexer;
 
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import org.littletonrobotics.junction.Logger;
 import org.littletonrobotics.junction.mechanism.LoggedMechanism2d;
 import org.littletonrobotics.junction.mechanism.LoggedMechanismLigament2d;
@@ -31,6 +32,14 @@ public class Indexer extends SubsystemBase {
         Logger.processInputs("Indexer", inputs);
         Logger.recordOutput("Indexer/FloorTargetRPM", floorTargetRPM);
         Logger.recordOutput("Indexer/TunnelTargetRPM", tunnelTargetRPM);
+        // Keep the floor diagnostics separate from the tunnel's legacy appliedVolts field.
+        SmartDashboard.putNumber("Indexer/FloorTargetRPM", floorTargetRPM);
+        SmartDashboard.putNumber("Indexer/FloorRPM", inputs.floorRPM);
+        SmartDashboard.putBoolean("Indexer/FloorConnected", inputs.floorConnected);
+        SmartDashboard.putNumber("Indexer/FloorVolts", inputs.floorAppliedVolts);
+        SmartDashboard.putNumber("Indexer/FloorAmps", inputs.floorCurrentAmps);
+        SmartDashboard.putString("Indexer/FloorConfigurationStatus", inputs.floorConfigurationStatus);
+        SmartDashboard.putString("Indexer/FloorControlStatus", inputs.floorControlStatus);
 
         rollerAngleDegrees += inputs.appliedVolts / 12.0
                 * MAX_VISUALIZER_SPEED_DEGREES_PER_SECOND

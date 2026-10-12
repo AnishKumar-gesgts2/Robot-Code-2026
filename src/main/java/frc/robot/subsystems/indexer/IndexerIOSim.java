@@ -31,11 +31,15 @@ public class IndexerIOSim implements IndexerIO {
 
     @Override
     public void updateInputs(IndexerIOInputs inputs) {
-        updateMotor(floor, floorRPM, IndexerConstants.FLOOR_GEAR_RATIO);
+        inputs.floorAppliedVolts = updateMotor(floor, floorRPM, IndexerConstants.FLOOR_GEAR_RATIO);
         inputs.appliedVolts = updateMotor(tunnel, tunnelRPM, IndexerConstants.TUNNEL_GEAR_RATIO);
         inputs.floorRPM = floor.getAngularVelocityRPM();
         inputs.tunnelRPM = tunnel.getAngularVelocityRPM();
         inputs.currentAmps = Math.abs(floor.getCurrentDrawAmps()) + Math.abs(tunnel.getCurrentDrawAmps());
+        inputs.floorCurrentAmps = Math.abs(floor.getCurrentDrawAmps());
+        inputs.floorConnected = true;
+        inputs.floorConfigurationStatus = "Simulation";
+        inputs.floorControlStatus = "Simulation";
     }
 
     @Override

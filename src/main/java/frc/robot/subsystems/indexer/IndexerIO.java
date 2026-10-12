@@ -9,6 +9,11 @@ public interface IndexerIO {
         public double currentAmps = 0.0;
         public double floorRPM = 0.0;
         public double tunnelRPM = 0.0;
+        public boolean floorConnected = false;
+        public double floorAppliedVolts = 0.0;
+        public double floorCurrentAmps = 0.0;
+        public String floorConfigurationStatus = "Not configured";
+        public String floorControlStatus = "No request";
     }
 
     default void updateInputs(IndexerIOInputs inputs) {}

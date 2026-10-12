@@ -42,7 +42,7 @@ class RobotContainerDriverControlsTest {
         DriverStationSim.setJoystickAxisCount(0, 6);
         DriverStationSim.setJoystickButtonCount(0, 10);
         DriverStationSim.setJoystickIsXbox(0, true);
-        DriverStationSim.setJoystickButtonCount(1, 10);
+        DriverStationSim.setJoystickButtonCount(1, 11);
         DriverStationSim.setJoystickAxis(0, XboxController.Axis.kRightTrigger.value, 0.0);
         DriverStationSim.notifyNewData();
 
@@ -89,6 +89,28 @@ class RobotContainerDriverControlsTest {
         assertTargets(shooter, indexer, 1000.0, 0.0, 1500.0);
         assertEquals(turretGoalBeforeTrigger, turret.getGoalDegrees(), 0.01);
 
+        setControls(false, false);
+        setDriver2Controls(true, false);
+        runCycles(150);
+        assertTargets(shooter, indexer, 3000.0, 0.0, 0.0);
+        assertEquals(3000.0, shooter.getCurrentRPM(), 200.0);
+        setDriver2Controls(true, true);
+        assertTargets(shooter, indexer, 3000.0, 1000.0, 0.0);
+        setDriver2Controls(false, true);
+        runCycles(150);
+        assertTargets(shooter, indexer, 1000.0, 1000.0, 0.0);
+        assertEquals(1000.0, shooter.getCurrentRPM(), 150.0);
+        setDriver2Controls(true, true);
+        setDriver2Controls(true, false);
+        assertTargets(shooter, indexer, 3000.0, 0.0, 0.0);
+        setDriver2Controls(false, false);
+        assertTargets(shooter, indexer, 1000.0, 0.0, 0.0);
+        setDriver2Controls(false, true);
+        setControls(false, true);
+        assertTargets(shooter, indexer, 1000.0, 1000.0, 1500.0);
+        setDriver2Controls(false, false);
+        assertTargets(shooter, indexer, 1000.0, 0.0, 1500.0);
+
         setControls(true, true);
         DriverStationSim.setEnabled(false);
         DriverStationSim.notifyNewData();
@@ -99,6 +121,13 @@ class RobotContainerDriverControlsTest {
     private static void setControls(boolean bumper, boolean trigger) {
         DriverStationSim.setJoystickButton(0, XboxController.Button.kRightBumper.value, bumper);
         DriverStationSim.setJoystickAxis(0, XboxController.Axis.kRightTrigger.value, trigger ? 1.0 : 0.0);
+        DriverStationSim.notifyNewData();
+        runCycles(3);
+    }
+
+    private static void setDriver2Controls(boolean rampUp, boolean floor) {
+        DriverStationSim.setJoystickButton(1, 11, rampUp);
+        DriverStationSim.setJoystickButton(1, 3, floor);
         DriverStationSim.notifyNewData();
         runCycles(3);
     }

@@ -181,15 +181,15 @@ public class RobotContainer {
         }
     }
 
-    /** One owner samples both controls so simultaneous holds cannot cancel each other. */
-    private Command manualShotCommand(Trigger spinUp, Trigger feed) {
+    /** One owner samples the controls so simultaneous holds cannot cancel each other. */
+    private Command manualShotCommand(Trigger spinUp, Trigger floor, Trigger feed) {
         return Commands.run(() -> {
             if (spinUp.getAsBoolean()) {
                 shooter.setGoal(Constants.ShooterConstants.FIXED_SHOT_RPM);
             } else {
                 shooter.setIdle();
             }
-            indexer.setFloorRPM(spinUp.getAsBoolean()
+            indexer.setFloorRPM(floor.getAsBoolean()
                 ? Constants.IndexerConstants.FLOOR_RUNNING_RPM : 0.0);
             indexer.setTunnelRPM(feed.getAsBoolean()
                 ? Constants.IndexerConstants.TUNNEL_RUNNING_RPM : 0.0);
@@ -232,12 +232,15 @@ public class RobotContainer {
         drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);
 
         // Operator A remains an alternate hold-to-run control for the floor/shooter.
-        Trigger spinUp = driverXbox.rightBumper().or(operatorXbox.a());
+        Trigger combinedSpinUp = driverXbox.rightBumper().or(operatorXbox.a());
+        // Driver 2 is the button board on USB port 1; use raw held states, not press edges.
+        Trigger spinUp = combinedSpinUp.or(new Trigger(() -> m_Controls.getButtonActivated(11)));
+        Trigger floor = combinedSpinUp.or(new Trigger(() -> m_Controls.getButtonActivated(3)));
         Trigger feed = driverXbox.rightTrigger();
-        spinUp.or(feed)
+        spinUp.or(floor).or(feed)
             .and(DriverStation::isTeleopEnabled)
             .and(() -> !pitCoastMode)
-            .whileTrue(manualShotCommand(spinUp, feed));
+            .whileTrue(manualShotCommand(spinUp, floor, feed));
 
         driverXbox.x()
           .and(DriverStation::isTeleopEnabled)
@@ -272,19 +275,7 @@ public class RobotContainer {
             Commands.runOnce(() -> feeder.setShooting(true))));
         ungatedShootTrigger.onFalse(Commands.runOnce(() -> feeder.setShooting(false)));
 
-        // --- INTAKE ---
-
-        Trigger intakeTrigger = new Trigger(m_Controls::getRollerTrigger);
-        Trigger intakeReleaseTrigger = new Trigger(m_Controls::getRollerReleaseTrigger);
-
-        intakeTrigger.onTrue(Commands.runOnce(() -> {
-            intake.activate();
-            feeder.setIntaking(true);
-        }));
-        intakeReleaseTrigger.onTrue(Commands.runOnce(() -> {
-            intake.deactivate();
-            feeder.setIntaking(false);
-        }));
+        // Driver 2 button 3 is now exclusively the flat indexer control above.
 
         // --- OUTTAKE/DEJAM ---
         driverXbox.b().onTrue(Commands.runOnce(() -> {
