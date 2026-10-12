@@ -53,7 +53,6 @@ import org.littletonrobotics.junction.Logger;
 
 public class RobotContainer {
     private static final int INDEXER_FLOOR_LEADER_ID = 25;
-    private static final int INDEXER_FLOOR_FOLLOWER_ID = 0;
     private static final int INDEXER_TUNNEL_MOTOR_ID = 16;
 
     // Controllers
@@ -100,7 +99,6 @@ public class RobotContainer {
       indexer = switch (indexerMode) {
         case REAL -> new Indexer(new IndexerIOTalonFX(
             INDEXER_FLOOR_LEADER_ID,
-            INDEXER_FLOOR_FOLLOWER_ID,
             INDEXER_TUNNEL_MOTOR_ID));
         case SIM -> new Indexer(new IndexerIOSim());
         case REPLAY -> new Indexer(new IndexerIO() {});
