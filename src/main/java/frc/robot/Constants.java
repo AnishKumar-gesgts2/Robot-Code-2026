@@ -174,7 +174,7 @@ public final class Constants {
      * line more aggressively, but too much causes fishtailing and unstable corners; decreasing it
      * allows wider deviation and smoother turns. Tune only after translation and rotation work.
      */
-    public static final double CROSS_TRACK_KP = 5;
+    public static final double CROSS_TRACK_KP = 1.5;
 
     /**
      * Integral cross-track gain, in (meters/second) per meter-second of accumulated lateral error.
