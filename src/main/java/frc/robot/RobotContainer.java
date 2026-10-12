@@ -235,8 +235,9 @@ public class RobotContainer {
         Trigger combinedSpinUp = driverXbox.rightBumper().or(operatorXbox.a());
         // Driver 2 is the button board on USB port 1; use raw held states, not press edges.
         Trigger spinUp = combinedSpinUp.or(new Trigger(() -> m_Controls.getButtonActivated(11)));
-        Trigger floor = combinedSpinUp.or(new Trigger(() -> m_Controls.getButtonActivated(3)));
-        Trigger feed = driverXbox.rightTrigger();
+        Trigger driver2Indexer = new Trigger(() -> m_Controls.getButtonActivated(3));
+        Trigger floor = combinedSpinUp.or(driver2Indexer);
+        Trigger feed = driverXbox.rightTrigger().or(driver2Indexer);
         spinUp.or(floor).or(feed)
             .and(DriverStation::isTeleopEnabled)
             .and(() -> !pitCoastMode)
@@ -275,7 +276,7 @@ public class RobotContainer {
             Commands.runOnce(() -> feeder.setShooting(true))));
         ungatedShootTrigger.onFalse(Commands.runOnce(() -> feeder.setShooting(false)));
 
-        // Driver 2 button 3 is now exclusively the flat indexer control above.
+        // Driver 2 button 3 runs the flat indexer and tunnel together above.
 
         // --- OUTTAKE/DEJAM ---
         driverXbox.b().onTrue(Commands.runOnce(() -> {
