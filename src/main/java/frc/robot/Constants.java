@@ -355,8 +355,9 @@ public final class Constants {
 
   public static final class ShooterConstants{
     /** CAN IDs */
-    public static final int LEFT_FLYWHEEL_ID = 19;
-    public static final int RIGHT_FLYWHEEL_ID = 20;
+    public static final int LEFT_FLYWHEEL_ID = 15;
+    public static final int RIGHT_FLYWHEEL_ID = 24;
+    public static final String CAN_BUS = "Canivore";
 
     /** PID Gains */
     public static final double kP = 0.6;

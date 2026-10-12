@@ -44,8 +44,8 @@ public class ShooterIOTalonFX implements ShooterIO {
     private final StatusSignal<Temperature> followerTemp;
 
     public ShooterIOTalonFX() {
-        leaderMotor = new TalonFX(ShooterConstants.LEFT_FLYWHEEL_ID, "rio");
-        followerMotor = new TalonFX(ShooterConstants.RIGHT_FLYWHEEL_ID, "rio");
+        leaderMotor = new TalonFX(ShooterConstants.LEFT_FLYWHEEL_ID, ShooterConstants.CAN_BUS);
+        followerMotor = new TalonFX(ShooterConstants.RIGHT_FLYWHEEL_ID, ShooterConstants.CAN_BUS);
 
         configureLeaderMotor();
         configureFollowerMotor();

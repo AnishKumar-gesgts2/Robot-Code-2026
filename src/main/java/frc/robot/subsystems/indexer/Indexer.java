@@ -16,9 +16,6 @@ public class Indexer extends SubsystemBase {
     private final LoggedMechanismRoot2d rollerRoot = mech2d.getRoot("RollerRoot", 1.0, 1.0);
     private final LoggedMechanismLigament2d roller = rollerRoot.append(
             new LoggedMechanismLigament2d("Roller", 0.75, 0.0));
-    private final LoggedMechanismRoot2d sensorRoot = mech2d.getRoot("SensorRoot", 1.65, 0.25);
-    private final LoggedMechanismLigament2d sensorIndicator = sensorRoot.append(
-            new LoggedMechanismLigament2d("SensorTriggered", 0.1, 90.0));
 
     private double rollerAngleDegrees = 0.0;
 
@@ -35,7 +32,6 @@ public class Indexer extends SubsystemBase {
                 * MAX_VISUALIZER_SPEED_DEGREES_PER_SECOND
                 * LOOP_PERIOD_SECONDS;
         roller.setAngle(rollerAngleDegrees);
-        sensorIndicator.setLength(inputs.sensorTriggered ? 0.5 : 0.1);
         Logger.recordOutput("Indexer/Mechanism", mech2d);
     }
 
@@ -45,9 +41,5 @@ public class Indexer extends SubsystemBase {
 
     public void stop() {
         io.stop();
-    }
-
-    public boolean hasGamePiece() {
-        return inputs.sensorTriggered;
     }
 }

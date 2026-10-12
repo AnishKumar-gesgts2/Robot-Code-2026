@@ -21,7 +21,6 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import frc.robot.Constants.LimelightConstants;
 import frc.robot.Constants.OperatorConstants;
 import frc.robot.autonomous.AutoModeChooser;
-import frc.robot.commands.indexer.LoadIndexerCommand;
 import frc.robot.commands.scoring.ShotCommand;
 import frc.robot.autonomous.AutoCommands;
 import frc.robot.commands.periodic.SuperstructureCommand;
@@ -55,10 +54,9 @@ import org.littletonrobotics.junction.Logger;
 
 
 public class RobotContainer {
-    private static final int INDEXER_FLOOR_LEADER_ID = 26;
-    private static final int INDEXER_FLOOR_FOLLOWER_ID = 27;
-    private static final int INDEXER_TOWER_MOTOR_ID = 28;
-    private static final int INDEXER_TOWER_SENSOR_ID = 29;
+    private static final int INDEXER_FLOOR_LEADER_ID = 25;
+    private static final int INDEXER_FLOOR_FOLLOWER_ID = 0;
+    private static final int INDEXER_TUNNEL_MOTOR_ID = 16;
 
     // Controllers
     private final CommandXboxController driverXbox = new CommandXboxController(0);
@@ -106,8 +104,7 @@ public class RobotContainer {
         case REAL -> new Indexer(new IndexerIOTalonFX(
             INDEXER_FLOOR_LEADER_ID,
             INDEXER_FLOOR_FOLLOWER_ID,
-            INDEXER_TOWER_MOTOR_ID,
-            INDEXER_TOWER_SENSOR_ID));
+            INDEXER_TUNNEL_MOTOR_ID));
         case SIM -> new Indexer(new IndexerIOSim());
         case REPLAY -> new Indexer(new IndexerIO() {});
       };
@@ -240,7 +237,9 @@ public class RobotContainer {
                 : new ChassisSpeeds());
         drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);
 
-        operatorXbox.a().onTrue(new LoadIndexerCommand(indexer));
+        operatorXbox.a()
+            .whileTrue(new RunCommand(() -> indexer.runIndexer(0.5), indexer)
+                .finallyDo(interrupted -> indexer.stop()));
         driverXbox.rightBumper()
             .whileTrue(new RunCommand(() -> indexer.runIndexer(1.0), indexer)
                 .finallyDo(interrupted -> indexer.stop()));

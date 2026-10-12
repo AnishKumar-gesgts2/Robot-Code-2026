@@ -7,7 +7,6 @@ public interface IndexerIO {
     public static class IndexerIOInputs {
         public double appliedVolts = 0.0;
         public double currentAmps = 0.0;
-        public boolean sensorTriggered = false;
     }
 
     default void updateInputs(IndexerIOInputs inputs) {}

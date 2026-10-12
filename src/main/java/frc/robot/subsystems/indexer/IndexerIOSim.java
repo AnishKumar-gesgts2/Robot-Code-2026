@@ -26,7 +26,6 @@ public class IndexerIOSim implements IndexerIO {
 
         inputs.appliedVolts = appliedVolts;
         inputs.currentAmps = Math.abs(motorSim.getCurrentDrawAmps());
-        inputs.sensorTriggered = new edu.wpi.first.wpilibj.Joystick(1).getRawButton(2);
     }
 
     @Override
