@@ -23,9 +23,7 @@ import frc.robot.Constants.OperatorConstants;
 import frc.robot.autonomous.AutoModeChooser;
 import frc.robot.commands.scoring.ShotCommand;
 import frc.robot.autonomous.AutoCommands;
-import frc.robot.commands.periodic.SuperstructureCommand;
 import frc.robot.commands.swervedrive.drivebase.AimAtHub;
-import frc.robot.utility.Shooter.PassCalculator;
 import frc.robot.utility.Shooter.ShotCalculator;
 
 import frc.robot.subsystems.shooter.Shooter;
@@ -76,7 +74,6 @@ public class RobotContainer {
     private final LED led;
 
     private final ShotCalculator shotCalculator = new ShotCalculator();
-    private final PassCalculator passCalculator = new PassCalculator();
     private Command shotCommand;
     private boolean pitCoastMode = false;
 
@@ -143,19 +140,11 @@ public class RobotContainer {
 
       vision = new VisionSubsystem(limelights);
 
-      SuperstructureCommand superstructureCommand = new SuperstructureCommand(
-        shooter,
-        turret,
-        drivebase::getPose,
-        drivebase::getFieldVelocity,
-        shotCalculator,
-        passCalculator
-      );
-
-      shooter.setDefaultCommand(superstructureCommand);
+      // Temporary no-vision behavior: keep the flywheel warm at idle until a command takes it.
+      shooter.setDefaultCommand(Commands.run(shooter::setIdle, shooter));
       led.setDefaultCommand(Commands.run(() -> {}, led));
 
-      // Takes the shooter from its default (the superstructure) until cancelled from the dashboard.
+      // Takes the shooter from its idle default until cancelled from the dashboard.
       SmartDashboard.putData("Shooter/FF Characterization", shooter.feedforwardCharacterizationCommand());
 
       configureBindings();
@@ -195,14 +184,15 @@ public class RobotContainer {
         }
     }
 
-    private void startUngatedDriverShot() {
-        cancelShotCommand();
-        feeder.setShooting(true);
-    }
-
-    private void stopUngatedDriverShot() {
-        cancelShotCommand();
-        feeder.setShooting(false);
+    /** Fixed no-vision shot using the Mechanical Advantage-style shooter controller. */
+    private Command fixedDriverShotCommand() {
+        return Commands.run(() -> {
+            shooter.setGoal(Constants.ShooterConstants.FIXED_SHOT_RPM);
+            indexer.runIndexer(1.0);
+        }, shooter, indexer).beforeStarting(this::cancelShotCommand).finallyDo(interrupted -> {
+            indexer.stop();
+            shooter.setIdle();
+        });
     }
 
     private boolean isInPassingZone() {
@@ -267,8 +257,7 @@ public class RobotContainer {
         Trigger driverShootTrigger = driverXbox.rightTrigger().and(DriverStation::isTeleopEnabled);
         Trigger driverAimedShootTrigger = driverXbox.y().and(DriverStation::isTeleopEnabled);
 
-        driverShootTrigger.onTrue(Commands.runOnce(this::startUngatedDriverShot));
-        driverShootTrigger.onFalse(Commands.runOnce(this::stopUngatedDriverShot));
+        driverShootTrigger.whileTrue(fixedDriverShotCommand());
 
         // Hold driver Y to run the gated shot while the chassis aims at the hub.
         driverAimedShootTrigger.onTrue(Commands.runOnce(this::scheduleAimedShotCommand));

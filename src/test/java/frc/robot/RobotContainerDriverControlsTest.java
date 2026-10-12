@@ -1,6 +1,5 @@
 package frc.robot;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -18,8 +17,8 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.robot.subsystems.indexer.Indexer;
 import frc.robot.subsystems.shooter.Shooter;
-import frc.robot.subsystems.feeder.Feeder;
 import frc.robot.subsystems.turret.Turret;
 
 class RobotContainerDriverControlsTest {
@@ -36,7 +35,7 @@ class RobotContainerDriverControlsTest {
     }
 
     @Test
-    void driverRightTriggerFeedsImmediatelyAndReleaseStopsIt() throws Exception {
+    void driverRightTriggerRunsFixedShotAndReleaseReturnsToIdle() throws Exception {
         DriverStationSim.setDsAttached(true);
         DriverStationSim.setEnabled(true);
         DriverStationSim.setAutonomous(false);
@@ -65,10 +64,10 @@ class RobotContainerDriverControlsTest {
             scheduler.run();
         }
 
-        Feeder feeder = getField(container, "feeder", Feeder.class);
-        assertNotNull(feeder);
-        assertTrue(feeder.isShooting());
-        assertTrue(shooter.getGoalRPM() > Constants.ShooterConstants.FLYWHEEL_IDLE_RPM);
+        Indexer indexer = getField(container, "indexer", Indexer.class);
+        assertNotNull(indexer);
+        assertEquals(1.0, indexer.getCommandedSpeed(), 1e-9);
+        assertEquals(Constants.ShooterConstants.FIXED_SHOT_RPM, shooter.getGoalRPM(), 1e-6);
         assertTrue(shooter.getCurrentRPM() > 0.0);
         assertEquals(turretGoalBeforeTrigger, turret.getGoalDegrees(), 0.01);
 
@@ -76,7 +75,8 @@ class RobotContainerDriverControlsTest {
         DriverStationSim.notifyNewData();
         scheduler.run();
 
-        assertFalse(feeder.isShooting());
+        assertEquals(0.0, indexer.getCommandedSpeed(), 1e-9);
+        assertEquals(Constants.ShooterConstants.FLYWHEEL_IDLE_RPM, shooter.getGoalRPM(), 1e-6);
     }
 
     private static <T> T getField(RobotContainer container, String name, Class<T> type)

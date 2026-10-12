@@ -374,6 +374,8 @@ public final class Constants {
     /** 12T motor gear drives the 18T flywheel gear, so flywheel speed = motor speed * 12/18. */
     public static final double FLYWHEEL_GEAR_RATIO = 12.0 / 18.0;
     public static final double FLYWHEEL_IDLE_RPM = 500; //kraken x60 
+    /** Temporary no-vision shot speed commanded while the driver holds right trigger. */
+    public static final double FIXED_SHOT_RPM = 3000.0;
     public static final double FLYWHEEL_RPM_TOLERANCE = 200.0; 
 
     /** Current Limits */
