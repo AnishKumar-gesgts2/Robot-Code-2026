@@ -30,7 +30,7 @@ def test_loads_current_robot_shot_configuration():
     assert config.values["LAUNCH_ELEVATION_DEGREES"] == pytest.approx(48.36)
     assert config.values["RELEASE_HEIGHT_METERS"] == pytest.approx(27.875 * 0.0254)
     assert config.values["HUB_BALL_CENTER_HEIGHT_METERS"] == pytest.approx(1.9038)
-    assert config.values["FLYWHEEL_IDLE_RPM"] == 500.0
+    assert config.values["FLYWHEEL_IDLE_RPM"] == 1000.0
     assert config.values["MAX_RPM"] == 3800.0
     assert config.empirical_parameters["velocity_transfer"] == pytest.approx(1.0)
     assert config.empirical_parameters["hood_offset_deg"] == pytest.approx(0.0)

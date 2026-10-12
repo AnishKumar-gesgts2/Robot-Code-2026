@@ -77,7 +77,7 @@ class ShotCalculatorTest {
         calculator.calculate(robotPoseAtBlueHubDistance(7.0), new ChassisSpeeds());
 
         assertFalse(calculator.isShotValid());
-        assertEquals(500.0, calculator.getFlywheelRPM(), 1e-9);
+        assertEquals(Constants.ShooterConstants.FLYWHEEL_IDLE_RPM, calculator.getFlywheelRPM(), 1e-9);
         assertFalse(calculator.measuredControlsScore(3000.0));
     }
 
@@ -118,7 +118,7 @@ class ShotCalculatorTest {
             calculator.calculate((Pose2d) invalidInput[0], (ChassisSpeeds) invalidInput[1]);
 
             assertFalse(calculator.isShotValid());
-            assertEquals(500.0, calculator.getFlywheelRPM(), 1e-9);
+            assertEquals(Constants.ShooterConstants.FLYWHEEL_IDLE_RPM, calculator.getFlywheelRPM(), 1e-9);
             assertTrue(Double.isFinite(calculator.getTurretAngle()));
             assertTrue(Double.isFinite(calculator.getTurretVelocityFF()));
             assertTrue(Double.isFinite(calculator.getDistanceToVirtualTarget()));
@@ -141,7 +141,7 @@ class ShotCalculatorTest {
         calculator.calculate(robotPoseAtBlueHubDistance(FIFTEEN_FEET_METERS), new ChassisSpeeds());
 
         assertFalse(calculator.isShotValid());
-        assertEquals(500.0, calculator.getFlywheelRPM(), 1e-9);
+        assertEquals(Constants.ShooterConstants.FLYWHEEL_IDLE_RPM, calculator.getFlywheelRPM(), 1e-9);
         assertEquals(0.0, calculator.getDistanceToVirtualTarget(), 1e-9);
     }
 

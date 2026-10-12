@@ -1,7 +1,6 @@
 package frc.robot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -35,48 +34,78 @@ class RobotContainerDriverControlsTest {
     }
 
     @Test
-    void driverRightTriggerRunsFixedShotAndReleaseReturnsToIdle() throws Exception {
+    void bumperAndTriggerIndependentlyControlFloorShooterAndTunnel() throws Exception {
         DriverStationSim.setDsAttached(true);
         DriverStationSim.setEnabled(true);
         DriverStationSim.setAutonomous(false);
-        DriverStationSim.setAllianceStationId(AllianceStationID.Blue1);
+        DriverStationSim.setAllianceStationId(AllianceStationID.Unknown);
         DriverStationSim.setJoystickAxisCount(0, 6);
         DriverStationSim.setJoystickButtonCount(0, 10);
         DriverStationSim.setJoystickIsXbox(0, true);
+        DriverStationSim.setJoystickButtonCount(1, 10);
         DriverStationSim.setJoystickAxis(0, XboxController.Axis.kRightTrigger.value, 0.0);
         DriverStationSim.notifyNewData();
 
         RobotContainer container = new RobotContainer();
-        // The default field origin is just outside the calibrated HUB range. An ungated driver
-        // shot must use the nearest setpoint instead of idling the wheel.
+        // Neither vision nor alliance information is needed for these manual controls.
         container.getDrivebase().resetOdometry(new Pose2d(0.0, 0.0, new Rotation2d()));
         CommandScheduler scheduler = CommandScheduler.getInstance();
         scheduler.run();
 
         Shooter shooter = getField(container, "shooter", Shooter.class);
+        Indexer indexer = getField(container, "indexer", Indexer.class);
         Turret turret = getField(container, "turret", Turret.class);
-        scheduler.run();
+        runCycles(150);
+        assertTargets(shooter, indexer, 1000.0, 0.0, 0.0);
+        assertEquals(1000.0, shooter.getCurrentRPM(), 150.0);
         double turretGoalBeforeTrigger = turret.getGoalDegrees();
 
-        DriverStationSim.setJoystickAxis(0, XboxController.Axis.kRightTrigger.value, 1.0);
-        DriverStationSim.notifyNewData();
-        for (int i = 0; i < 50; i++) {
-            scheduler.run();
-        }
+        setControls(true, false);
+        runCycles(150);
+        assertTargets(shooter, indexer, 3000.0, 1000.0, 0.0);
+        assertEquals(3000.0, shooter.getCurrentRPM(), 200.0);
 
-        Indexer indexer = getField(container, "indexer", Indexer.class);
-        assertNotNull(indexer);
-        assertEquals(1.0, indexer.getCommandedSpeed(), 1e-9);
-        assertEquals(Constants.ShooterConstants.FIXED_SHOT_RPM, shooter.getGoalRPM(), 1e-6);
-        assertTrue(shooter.getCurrentRPM() > 0.0);
+        setControls(true, true);
+        assertTargets(shooter, indexer, 3000.0, 1000.0, 1500.0);
+        // Releasing the trigger must not cancel the bumper's shooter/floor command.
+        setControls(true, false);
+        assertTargets(shooter, indexer, 3000.0, 1000.0, 0.0);
+        setControls(true, true);
+        setControls(false, true);
+        assertTargets(shooter, indexer, 1000.0, 0.0, 1500.0);
+        setControls(false, false);
+        assertTargets(shooter, indexer, 1000.0, 0.0, 0.0);
+
+        // Trigger alone feeds without changing the shooter's idle goal.
+        setControls(false, true);
+        assertTargets(shooter, indexer, 1000.0, 0.0, 1500.0);
         assertEquals(turretGoalBeforeTrigger, turret.getGoalDegrees(), 0.01);
 
-        DriverStationSim.setJoystickAxis(0, XboxController.Axis.kRightTrigger.value, 0.0);
+        setControls(true, true);
+        DriverStationSim.setEnabled(false);
         DriverStationSim.notifyNewData();
-        scheduler.run();
+        runCycles(3);
+        assertTargets(shooter, indexer, 1000.0, 0.0, 0.0);
+    }
 
-        assertEquals(0.0, indexer.getCommandedSpeed(), 1e-9);
-        assertEquals(Constants.ShooterConstants.FLYWHEEL_IDLE_RPM, shooter.getGoalRPM(), 1e-6);
+    private static void setControls(boolean bumper, boolean trigger) {
+        DriverStationSim.setJoystickButton(0, XboxController.Button.kRightBumper.value, bumper);
+        DriverStationSim.setJoystickAxis(0, XboxController.Axis.kRightTrigger.value, trigger ? 1.0 : 0.0);
+        DriverStationSim.notifyNewData();
+        runCycles(3);
+    }
+
+    private static void runCycles(int count) {
+        for (int i = 0; i < count; i++) {
+            CommandScheduler.getInstance().run();
+        }
+    }
+
+    private static void assertTargets(Shooter shooter, Indexer indexer,
+            double shooterRPM, double floorRPM, double tunnelRPM) {
+        assertEquals(shooterRPM, shooter.getGoalRPM(), 1e-6);
+        assertEquals(floorRPM, indexer.getFloorTargetRPM(), 1e-6);
+        assertEquals(tunnelRPM, indexer.getTunnelTargetRPM(), 1e-6);
     }
 
     private static <T> T getField(RobotContainer container, String name, Class<T> type)

@@ -5,7 +5,6 @@ import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.RunCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -182,11 +181,18 @@ public class RobotContainer {
         }
     }
 
-    /** Fixed no-vision shot using the Mechanical Advantage-style shooter controller. */
-    private Command fixedDriverShotCommand() {
+    /** One owner samples both controls so simultaneous holds cannot cancel each other. */
+    private Command manualShotCommand(Trigger spinUp, Trigger feed) {
         return Commands.run(() -> {
-            shooter.setGoal(Constants.ShooterConstants.FIXED_SHOT_RPM);
-            indexer.runIndexer(1.0);
+            if (spinUp.getAsBoolean()) {
+                shooter.setGoal(Constants.ShooterConstants.FIXED_SHOT_RPM);
+            } else {
+                shooter.setIdle();
+            }
+            indexer.setFloorRPM(spinUp.getAsBoolean()
+                ? Constants.IndexerConstants.FLOOR_RUNNING_RPM : 0.0);
+            indexer.setTunnelRPM(feed.getAsBoolean()
+                ? Constants.IndexerConstants.TUNNEL_RUNNING_RPM : 0.0);
         }, shooter, indexer).beforeStarting(this::cancelShotCommand).finallyDo(interrupted -> {
             indexer.stop();
             shooter.setIdle();
@@ -225,12 +231,13 @@ public class RobotContainer {
                 : new ChassisSpeeds());
         drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);
 
-        operatorXbox.a()
-            .whileTrue(new RunCommand(() -> indexer.runIndexer(0.5), indexer)
-                .finallyDo(interrupted -> indexer.stop()));
-        driverXbox.rightBumper()
-            .whileTrue(new RunCommand(() -> indexer.runIndexer(1.0), indexer)
-                .finallyDo(interrupted -> indexer.stop()));
+        // Operator A remains an alternate hold-to-run control for the floor/shooter.
+        Trigger spinUp = driverXbox.rightBumper().or(operatorXbox.a());
+        Trigger feed = driverXbox.rightTrigger();
+        spinUp.or(feed)
+            .and(DriverStation::isTeleopEnabled)
+            .and(() -> !pitCoastMode)
+            .whileTrue(manualShotCommand(spinUp, feed));
 
         driverXbox.x()
           .and(DriverStation::isTeleopEnabled)
@@ -245,17 +252,14 @@ public class RobotContainer {
           .and(DriverStation::isTeleopEnabled)
           .onTrue(Commands.runOnce(
               this::togglePitCoastMode,
-              drivebase, shooter, turret, feeder, intake));
+              drivebase, shooter, turret, feeder, intake, indexer));
 
         // --- SHOTS ---
         
         Trigger shootTrigger = new Trigger(m_Controls::getShootTrigger);
         Trigger shootReleaseTrigger = new Trigger(m_Controls::getShootReleaseTrigger);
         Trigger ungatedShootTrigger = new Trigger(m_Controls::getUngatedShootTrigger);
-        Trigger driverShootTrigger = driverXbox.rightTrigger().and(DriverStation::isTeleopEnabled);
         Trigger driverAimedShootTrigger = driverXbox.y().and(DriverStation::isTeleopEnabled);
-
-        driverShootTrigger.whileTrue(fixedDriverShotCommand());
 
         // Hold driver Y to run the gated shot while the chassis aims at the hub.
         driverAimedShootTrigger.onTrue(Commands.runOnce(this::scheduleAimedShotCommand));
@@ -308,6 +312,7 @@ public class RobotContainer {
         turret.setPitCoastMode(enabled);
         feeder.setPitCoastMode(enabled);
         intake.setPitCoastMode(enabled);
+        indexer.stop();
 
         SmartDashboard.putBoolean("Pit Coast Mode", enabled);
         Logger.recordOutput("Robot/PitCoastMode", enabled);
