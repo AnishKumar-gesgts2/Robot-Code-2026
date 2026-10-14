@@ -215,7 +215,7 @@ public class AutoCommands {
             if(ready){
                 feeder.setShooting(true);
                 feeder.setIntaking(true);
-                intake.activate();
+                intake.startShootingOscillation();
             } else {
                 feeder.setShooting(false);
             }
@@ -223,6 +223,7 @@ public class AutoCommands {
         .finallyDo((interrupted) -> {
             feeder.setShooting(false);
             feeder.setIntaking(false);
+            intake.stopShootingOscillation();
             intake.deactivate();
             shooter.setIdle();
         });

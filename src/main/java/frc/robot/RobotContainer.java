@@ -160,7 +160,7 @@ public class RobotContainer {
     private void scheduleShotCommand() {
         cancelShotCommand();
         shotCommand = new ShotCommand(
-            feeder, turret, shooter, shotCalculator, drivebase::getPose, led);
+            feeder, turret, shooter, shotCalculator, drivebase::getPose, led, intake);
         CommandScheduler.getInstance().schedule(shotCommand);
     }
 
@@ -168,7 +168,7 @@ public class RobotContainer {
     private void scheduleAimedShotCommand() {
         cancelShotCommand();
         shotCommand = new ShotCommand(
-            feeder, turret, shooter, shotCalculator, drivebase::getPose, led)
+            feeder, turret, shooter, shotCalculator, drivebase::getPose, led, intake)
             .alongWith(new AimAtHub(
                 drivebase,
                 () -> clampSpeedsForShooting(driveAngularVelocity.get())));
@@ -273,10 +273,33 @@ public class RobotContainer {
         shootReleaseTrigger.onTrue(Commands.runOnce(this::cancelShotCommand));
         ungatedShootTrigger.onTrue(Commands.sequence(
             Commands.runOnce(this::cancelShotCommand),
-            Commands.runOnce(() -> feeder.setShooting(true))));
-        ungatedShootTrigger.onFalse(Commands.runOnce(() -> feeder.setShooting(false)));
+            Commands.runOnce(() -> {
+                feeder.setShooting(true);
+                intake.startShootingOscillation();
+            }, feeder, intake)));
+        ungatedShootTrigger.onFalse(Commands.runOnce(() -> {
+            feeder.setShooting(false);
+            intake.stopShootingOscillation();
+        }, feeder, intake));
 
         // Driver 2 button 3 runs the flat indexer and tunnel together above.
+
+        Trigger intakeRoller = new Trigger(() -> m_Controls.getButtonActivated(4))
+            .and(DriverStation::isTeleopEnabled);
+        intakeRoller.onTrue(Commands.runOnce(() -> {
+            intake.activate();
+            feeder.setIntaking(true);
+        }, intake, feeder));
+        intakeRoller.onFalse(Commands.runOnce(() -> {
+            intake.setExtendedStopped();
+            feeder.setIntaking(false);
+        }, intake, feeder));
+        new Trigger(m_Controls::getIntakeResetTrigger)
+            .and(DriverStation::isTeleopEnabled)
+            .onTrue(Commands.runOnce(() -> {
+                intake.setRetracted();
+                feeder.setIntaking(false);
+            }, intake, feeder));
 
         // --- OUTTAKE/DEJAM ---
         driverXbox.b().onTrue(Commands.runOnce(() -> {

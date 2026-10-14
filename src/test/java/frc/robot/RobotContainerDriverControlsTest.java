@@ -17,6 +17,7 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.subsystems.indexer.Indexer;
+import frc.robot.subsystems.intake.Intake;
 import frc.robot.subsystems.shooter.Shooter;
 import frc.robot.subsystems.turret.Turret;
 
@@ -54,6 +55,7 @@ class RobotContainerDriverControlsTest {
 
         Shooter shooter = getField(container, "shooter", Shooter.class);
         Indexer indexer = getField(container, "indexer", Indexer.class);
+        Intake intake = getField(container, "intake", Intake.class);
         Turret turret = getField(container, "turret", Turret.class);
         runCycles(150);
         assertTargets(shooter, indexer, 1000.0, 0.0, 0.0);
@@ -105,6 +107,13 @@ class RobotContainerDriverControlsTest {
         assertTargets(shooter, indexer, 3000.0, 0.0, 0.0);
         setDriver2Controls(false, false);
         assertTargets(shooter, indexer, 1000.0, 0.0, 0.0);
+        setDriver2Button(4, true);
+        assertEquals(Intake.State.EXTENDED_SPINNING, intake.getState());
+        setDriver2Button(4, false);
+        assertEquals(Intake.State.EXTENDED_STOPPED, intake.getState());
+        setDriver2Button(6, true);
+        assertEquals(Intake.State.RETRACTED_STOPPED, intake.getState());
+        setDriver2Button(6, false);
         setDriver2Controls(false, true);
         assertTargets(shooter, indexer, 1000.0, 1000.0, 1500.0);
         setControls(false, true);
@@ -129,6 +138,12 @@ class RobotContainerDriverControlsTest {
     private static void setDriver2Controls(boolean rampUp, boolean floor) {
         DriverStationSim.setJoystickButton(1, 11, rampUp);
         DriverStationSim.setJoystickButton(1, 3, floor);
+        DriverStationSim.notifyNewData();
+        runCycles(3);
+    }
+
+    private static void setDriver2Button(int button, boolean pressed) {
+        DriverStationSim.setJoystickButton(1, button, pressed);
         DriverStationSim.notifyNewData();
         runCycles(3);
     }

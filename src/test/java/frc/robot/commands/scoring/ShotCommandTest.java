@@ -12,6 +12,8 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import frc.robot.subsystems.feeder.Feeder;
 import frc.robot.subsystems.feeder.FeederIO;
+import frc.robot.subsystems.intake.Intake;
+import frc.robot.subsystems.intake.IntakeIO;
 import frc.robot.subsystems.led.LED;
 import frc.robot.subsystems.led.LEDIO;
 import frc.robot.subsystems.shooter.Shooter;
@@ -44,7 +46,8 @@ class ShotCommandTest {
             shooter,
             calculator,
             Pose2d::new,
-            led
+            led,
+            new Intake(new IntakeIO() {})
         );
 
         feeder.setShooting(true);
