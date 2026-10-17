@@ -82,17 +82,20 @@ class ShooterTest {
     }
 
     @Test
-    void idleIsNeverReadyAndSpinsTheWheel() {
+    void teleopIdleIsZeroAndNeverReady() {
         Shooter shooter = new Shooter(new ShooterIOSim());
         shooter.setIdle();
         step(shooter, 150);
 
         assertFalse(shooter.atTarget());
-        assertEquals(ShooterConstants.FLYWHEEL_IDLE_RPM, shooter.getCurrentRPM(), 150.0);
+        assertEquals(0.0, shooter.getGoalRPM(), 1.0);
+        assertEquals(0.0, shooter.getCurrentRPM(), 150.0);
     }
 
     @Test
     void returnsToIdleAfterShotEvenWhenBatterySags() {
+        DriverStationSim.setAutonomous(true);
+        DriverStationSim.notifyNewData();
         Shooter shooter = new Shooter(new ShooterIOSim());
         shooter.setGoal(SHOT_RPM);
         step(shooter, 150);

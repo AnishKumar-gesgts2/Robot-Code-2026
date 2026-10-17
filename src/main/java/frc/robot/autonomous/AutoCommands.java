@@ -15,6 +15,7 @@ import frc.robot.lib.BLine.FollowPath;
 import frc.robot.lib.BLine.Path;
 import frc.robot.Constants.BLineConstants;
 import frc.robot.subsystems.feeder.Feeder;
+import frc.robot.subsystems.indexer.Indexer;
 import frc.robot.subsystems.intake.Intake;
 import frc.robot.subsystems.shooter.Shooter;
 import frc.robot.subsystems.swervedrive.SwerveSubsystem;
@@ -150,6 +151,29 @@ public class AutoCommands {
 
     public Command getNoAuto() {
         return Commands.none();
+    }
+
+    /** Shooter runs from 0–10 seconds; tunnel runs from 4–10 seconds. */
+    public Command getCenterAuto(Indexer indexer) {
+        return Commands.sequence(
+            Commands.runOnce(() -> {
+                drivetrain.setChassisSpeeds(new ChassisSpeeds());
+                indexer.setTunnelRPM(0.0);
+                shooter.setGoal(4000.0);
+            }, drivetrain, shooter, indexer),
+            Commands.waitSeconds(4.0),
+            Commands.runOnce(() -> indexer.setTunnelRPM(2000.0), indexer),
+            Commands.waitSeconds(6.0),
+            Commands.runOnce(() -> {
+                indexer.setTunnelRPM(0.0);
+                shooter.stop();
+            }, shooter, indexer),
+            Commands.idle(shooter, indexer)
+        ).finallyDo(interrupted -> {
+            indexer.setTunnelRPM(0.0);
+            shooter.stop();
+            drivetrain.setChassisSpeeds(new ChassisSpeeds());
+        });
     }
 
     /** Runs the path exported from the BLine editor and resets odometry to its first waypoint. */

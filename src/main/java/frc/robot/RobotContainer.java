@@ -125,7 +125,7 @@ public class RobotContainer {
         turret,
         shotCalculator
       );
-      autoChooser = new AutoModeChooser(factory);
+      autoChooser = new AutoModeChooser(factory, indexer);
       SmartDashboard.putData("Auto Chooser", autoChooser.getAutoChooser());
       SmartDashboard.putBoolean("Pit Coast Mode", false);
 
