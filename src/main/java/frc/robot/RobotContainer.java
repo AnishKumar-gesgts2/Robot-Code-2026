@@ -2,6 +2,7 @@ package frc.robot;
 
 import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -29,12 +30,15 @@ import frc.robot.subsystems.shooter.Shooter;
 import frc.robot.subsystems.shooter.ShooterIOSim;
 import frc.robot.subsystems.shooter.ShooterIOTalonFX;
 import frc.robot.subsystems.turret.Turret;
+import frc.robot.subsystems.turret.TurretIO;
 import frc.robot.subsystems.turret.TurretIOSim;
 import frc.robot.subsystems.turret.TurretIOTalonFX;
 import frc.robot.subsystems.feeder.Feeder;
+import frc.robot.subsystems.feeder.FeederIO;
 import frc.robot.subsystems.feeder.FeederIOSim;
 import frc.robot.subsystems.feeder.FeederIOTalonFX;
 import frc.robot.subsystems.intake.Intake;
+import frc.robot.subsystems.intake.IntakeIO;
 import frc.robot.subsystems.intake.IntakeIOSim;
 import frc.robot.subsystems.intake.IntakeIOTalonFX;
 import frc.robot.subsystems.indexer.Indexer;
@@ -83,7 +87,7 @@ public class RobotContainer {
       () -> driverXbox.getLeftX() * -1)
       .withControllerRotationAxis(() -> -driverXbox.getRightX())
       .deadband(OperatorConstants.DEADBAND)
-      .scaleTranslation(0.8)
+      .scaleTranslation(1.0)
       .allianceRelativeControl(true);
 
 
@@ -105,9 +109,13 @@ public class RobotContainer {
 
       if (Robot.isReal()) {
         shooter = new Shooter(new ShooterIOTalonFX());
-        turret = new Turret(new TurretIOTalonFX());
-        feeder = new Feeder(new FeederIOTalonFX());
-        intake = new Intake(new IntakeIOTalonFX());
+        // Do not create CAN controllers for devices that are not installed.
+        turret = new Turret(Constants.HardwareConstants.LEGACY_TURRET_INSTALLED
+            ? new TurretIOTalonFX() : new TurretIO() {});
+        feeder = new Feeder(Constants.HardwareConstants.LEGACY_FEEDER_INSTALLED
+            ? new FeederIOTalonFX() : new FeederIO() {});
+        intake = new Intake(Constants.HardwareConstants.LEGACY_INTAKE_INSTALLED
+            ? new IntakeIOTalonFX() : new IntakeIO() {});
         led = new LED(new LEDIOAddressable(3, 65), shooter, turret, shotCalculator);
       } else {
           shooter = new Shooter(new ShooterIOSim());
@@ -232,7 +240,11 @@ public class RobotContainer {
         drivebase.setDefaultCommand(driveFieldOrientedAnglularVelocity);
 
         // Operator A remains an alternate hold-to-run control for the floor/shooter.
-        Trigger combinedSpinUp = driverXbox.rightBumper().or(operatorXbox.a());
+        // Avoid repeatedly asking WPILib for Button 6 when the driver HID lacks that button.
+        Trigger combinedSpinUp = new Trigger(() ->
+            DriverStation.getStickButtonCount(driverXbox.getHID().getPort())
+                >= XboxController.Button.kRightBumper.value
+            && driverXbox.getHID().getRightBumperButton()).or(operatorXbox.a());
         // Driver 2 is the button board on USB port 1; use raw held states, not press edges.
         Trigger spinUp = combinedSpinUp.or(new Trigger(() -> m_Controls.getButtonActivated(11)));
         Trigger driver2Indexer = new Trigger(() -> m_Controls.getButtonActivated(3));

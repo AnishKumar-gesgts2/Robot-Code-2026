@@ -13,6 +13,9 @@ import org.littletonrobotics.junction.wpilog.WPILOGWriter;
 
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import com.ctre.phoenix6.CANBus;
 import edu.wpi.first.hal.AllianceStationID;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
@@ -39,6 +42,8 @@ public class Robot extends LoggedRobot
   private FlywheelVisualizer flywheelVisualizer;
 
   private Timer disabledTimer;
+  private final CANBus mechanismCANBus = new CANBus(Constants.ShooterConstants.CAN_BUS);
+  private double nextCANHealthSample;
 
   private final boolean runHeadlessAutoDiagnostic =
       isSimulation() && "1".equals(System.getenv("BLINE_HEADLESS_DIAGNOSTIC"));
@@ -118,6 +123,25 @@ public class Robot extends LoggedRobot
     // and running subsystem periodic() methods.  This must be called from the robot's periodic
     // block in order for anything in the Command-based framework to work.
     CommandScheduler.getInstance().run();
+    if (isReal() && Timer.getFPGATimestamp() >= nextCANHealthSample) {
+      nextCANHealthSample = Timer.getFPGATimestamp() + 1.0;
+      var rio = RobotController.getCANStatus();
+      Logger.recordOutput("CAN/rio/UtilizationPercent", rio.percentBusUtilization * 100.0);
+      Logger.recordOutput("CAN/rio/BusOffCount", rio.busOffCount);
+      Logger.recordOutput("CAN/rio/TxFullCount", rio.txFullCount);
+      Logger.recordOutput("CAN/rio/ReceiveErrorCount", rio.receiveErrorCount);
+      Logger.recordOutput("CAN/rio/TransmitErrorCount", rio.transmitErrorCount);
+      SmartDashboard.putNumber("CAN/rio/UtilizationPercent", rio.percentBusUtilization * 100.0);
+      var mechanism = mechanismCANBus.getStatus();
+      Logger.recordOutput("CAN/Canivore/Status", mechanism.Status.toString());
+      Logger.recordOutput("CAN/Canivore/UtilizationPercent", mechanism.BusUtilization * 100.0);
+      Logger.recordOutput("CAN/Canivore/BusOffCount", mechanism.BusOffCount);
+      Logger.recordOutput("CAN/Canivore/TxFullCount", mechanism.TxFullCount);
+      Logger.recordOutput("CAN/Canivore/ReceiveErrorCount", mechanism.REC);
+      Logger.recordOutput("CAN/Canivore/TransmitErrorCount", mechanism.TEC);
+      SmartDashboard.putNumber("CAN/Canivore/UtilizationPercent", mechanism.BusUtilization * 100.0);
+      SmartDashboard.putString("CAN/Canivore/Status", mechanism.Status.toString());
+    }
     if (runHeadlessAutoDiagnostic) {
       Logger.recordOutput("BLine/Diagnostic/AutoActive",
           m_autonomousCommand != null

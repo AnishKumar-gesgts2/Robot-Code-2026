@@ -27,6 +27,15 @@ public final class Constants {
 
   public static final Mode currentMode = Mode.REAL; // Change to REPLAY for log replay
 
+  /** Installed hardware on this robot. Legacy roboRIO mechanisms are physically absent. */
+  public static final class HardwareConstants {
+    public static final boolean LEGACY_TURRET_INSTALLED = false;
+    public static final boolean LEGACY_FEEDER_INSTALLED = false;
+    public static final boolean LEGACY_INTAKE_INSTALLED = false;
+
+    private HardwareConstants() {}
+  }
+
   public static final double ROBOT_MASS = 62.59; // TODO: replace with true robot mass
   public static final Matter CHASSIS    = new Matter(new Translation3d(0, 0, Units.inchesToMeters(8)), ROBOT_MASS);
   public static final double LOOP_TIME  = 0.13; //s, 20ms + 110ms sprk max velocity lag

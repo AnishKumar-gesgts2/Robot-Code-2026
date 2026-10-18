@@ -17,6 +17,7 @@ import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.trajectory.Trajectory;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -79,7 +80,9 @@ public class SwerveSubsystem extends SubsystemBase {
         .subscribe("Idle");
 
     Pose2d startingPose = FieldConstants.BLUE_TESTING_START;
-    SwerveDriveTelemetry.verbosity = TelemetryVerbosity.HIGH;
+    SmartDashboard.setDefaultBoolean("Swerve/DetailedTelemetry", false);
+    SwerveDriveTelemetry.verbosity = RobotBase.isSimulation()
+        ? TelemetryVerbosity.HIGH : TelemetryVerbosity.INFO;
     try
     {
       swerveDrive = new SwerveParser(directory).createSwerveDrive(Constants.MAX_SPEED, startingPose);
@@ -121,6 +124,9 @@ public class SwerveSubsystem extends SubsystemBase {
 
   @Override
   public void periodic() {
+    SwerveDriveTelemetry.verbosity = RobotBase.isSimulation()
+        || SmartDashboard.getBoolean("Swerve/DetailedTelemetry", false)
+            ? TelemetryVerbosity.HIGH : TelemetryVerbosity.INFO;
     // Pose2d is published as structured AdvantageKit data. In AdvantageScope, add
     // Swerve/Pose to a 2D Field tab and BLine/FollowPath/pathTranslations as the path.
     Logger.recordOutput("Swerve/Pose", getPose());
