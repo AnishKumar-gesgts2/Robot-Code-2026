@@ -1,213 +1,132 @@
 package frc.robot.subsystems.intake;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
+import static org.junit.jupiter.api.Assertions.*;
 import edu.wpi.first.hal.HAL;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
-import frc.robot.Constants.IntakeConstants;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.AfterEach;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import edu.wpi.first.wpilibj.simulation.SimHooks;
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.robot.Constants.IntakeConstants;
+import org.junit.jupiter.api.*;
 
 class IntakeTest {
     private static class FakeIO implements IntakeIO {
-        double deployTarget;
-        double rollerTarget;
+        double target;
+        double roller;
         boolean stopped;
         boolean ready = true;
-        int zeroCalls;
-        double position;
-
-        @Override
-        public void updateInputs(IntakeIOInputs inputs) {
+        @Override public void updateInputs(IntakeIOInputs inputs) {
             inputs.deployConnected = ready;
-            inputs.rollerConnected = ready;
             inputs.configured = ready;
             inputs.deployHomed = ready;
-            inputs.deployPositionRotations = position;
+            // No roller is connected or required for the rack-only test.
         }
-
-        @Override
-        public void zeroRetracted() {
-            zeroCalls++;
-        }
-
-        @Override
-        public void setDeployPosition(double rotations) {
-            deployTarget = rotations;
-            stopped = false;
-        }
-
-        @Override
-        public void setRollerRPM(double rpm) {
-            rollerTarget = rpm;
-        }
-
-        @Override
-        public void stop() {
-            stopped = true;
-            rollerTarget = 0;
-        }
+        @Override public void setDeployPosition(double position) { target = position; stopped = false; }
+        @Override public void setRollerRPM(double rpm) { roller = rpm; }
+        @Override public void stop() { stopped = true; }
     }
+    private FakeIO io;
+    private Intake intake;
 
-    @BeforeEach
-    void enableRobot() {
+    @BeforeEach void setup() {
         assertTrue(HAL.initialize(500, 0));
+        SimHooks.pauseTiming();
+        DriverStationSim.resetData();
         DriverStationSim.setDsAttached(true);
-        DriverStationSim.setEnabled(true);
         DriverStationSim.notifyNewData();
+        io = new FakeIO();
+        intake = new Intake(io);
     }
 
-    @AfterEach
-    void resetDriverStation() {
+    @AfterEach void cleanup() {
+        CommandScheduler.getInstance().unregisterSubsystem(intake);
         DriverStationSim.resetData();
         DriverStationSim.notifyNewData();
+        SimHooks.resumeTiming();
     }
 
-    @Test
-    void disabledAndFaultedIntakeStopsAndDoesNotResumeRollers() {
-        FakeIO io = new FakeIO();
-        Intake intake = new Intake(io);
-        try {
-            intake.activate();
-            intake.periodic();
-            assertEquals(IntakeConstants.ROLLER_RPM, io.rollerTarget);
-            DriverStationSim.setEnabled(false);
-            DriverStationSim.notifyNewData();
-            intake.periodic();
-            assertTrue(io.stopped);
-            assertEquals(Intake.State.EXTENDED_STOPPED, intake.getState());
-            DriverStationSim.setEnabled(true);
-            DriverStationSim.notifyNewData();
-            intake.periodic();
-            assertEquals(0.0, io.rollerTarget);
-            intake.activate();
-            io.ready = false;
-            intake.periodic();
-            assertTrue(io.stopped);
-            assertFalse(intake.atDeployTarget());
-            assertFalse(intake.isReady());
-        } finally {
-            CommandScheduler.getInstance().unregisterSubsystem(intake);
-        }
+    private void teleop(boolean enabled) {
+        DriverStationSim.setAutonomous(false);
+        DriverStationSim.setTest(false);
+        DriverStationSim.setEnabled(enabled);
+        DriverStationSim.notifyNewData();
+        intake.periodic();
     }
 
-    @Test
-    void zeroRequiresDisabledAndBrakeMode() {
-        FakeIO io = new FakeIO();
-        Intake intake = new Intake(io);
-        try {
-            intake.zeroRetracted();
-            assertEquals(0, io.zeroCalls);
-            DriverStationSim.setEnabled(false);
-            DriverStationSim.notifyNewData();
-            intake.setPitCoastMode(true);
-            intake.zeroRetracted();
-            assertEquals(0, io.zeroCalls);
-            intake.setPitCoastMode(false);
-            intake.zeroRetracted();
-            assertEquals(1, io.zeroCalls);
-        } finally {
-            CommandScheduler.getInstance().unregisterSubsystem(intake);
-        }
+    @Test void extendsImmediatelyThenRetractsOnceAndHolds() {
+        teleop(true);
+        assertEquals(IntakeConstants.EXTENDED_POSITION_ROTATIONS, io.target);
+        assertFalse(io.stopped);
+        assertTrue(intake.isReady());
+        SimHooks.stepTiming(IntakeConstants.DEPLOY_TEST_EXTEND_SECONDS - 0.01);
+        intake.periodic();
+        assertEquals(IntakeConstants.EXTENDED_POSITION_ROTATIONS, io.target);
+        SimHooks.stepTiming(0.02);
+        intake.periodic();
+        assertEquals(IntakeConstants.RETRACTED_POSITION_ROTATIONS, io.target);
+        SimHooks.stepTiming(20.0);
+        intake.periodic();
+        assertEquals(IntakeConstants.RETRACTED_POSITION_ROTATIONS, io.target);
+        assertEquals(0.0, io.roller);
     }
 
-    @Test
-    void oscillationReachesBothEndpointsBeforeReversingAndRestoresState() {
-        FakeIO io = new FakeIO();
-        Intake intake = new Intake(io);
-        SimHooks.pauseTiming();
-        try {
-            intake.activate();
-            intake.startShootingOscillation();
-            intake.periodic();
-            SimHooks.stepTiming(1.0);
-            intake.periodic();
-            assertEquals(IntakeConstants.SHOOT_OSCILLATION_FORWARD_POSITION_ROTATIONS, io.deployTarget);
-            io.position = io.deployTarget;
-            intake.periodic();
-            SimHooks.stepTiming(0.3);
-            intake.periodic();
-            assertEquals(IntakeConstants.SHOOT_OSCILLATION_REAR_POSITION_ROTATIONS, io.deployTarget);
-            SimHooks.stepTiming(1.0);
-            intake.periodic();
-            assertEquals(IntakeConstants.SHOOT_OSCILLATION_REAR_POSITION_ROTATIONS, io.deployTarget);
-            io.position = io.deployTarget;
-            intake.periodic();
-            SimHooks.stepTiming(0.3);
-            intake.periodic();
-            assertEquals(IntakeConstants.SHOOT_OSCILLATION_FORWARD_POSITION_ROTATIONS, io.deployTarget);
-            intake.stopShootingOscillation();
-            intake.periodic();
-            assertEquals(IntakeConstants.EXTENDED_POSITION_ROTATIONS, io.deployTarget);
-            assertEquals(IntakeConstants.ROLLER_RPM, io.rollerTarget);
-        } finally {
-            SimHooks.resumeTiming();
-            CommandScheduler.getInstance().unregisterSubsystem(intake);
-        }
+    @Test void disableStopsImmediatelyAndNextTeleopEnableRepeatsTest() {
+        teleop(true);
+        SimHooks.stepTiming(0.5);
+        teleop(false);
+        assertTrue(io.stopped);
+        teleop(true);
+        assertFalse(io.stopped);
+        assertEquals(IntakeConstants.EXTENDED_POSITION_ROTATIONS, io.target);
+        SimHooks.stepTiming(IntakeConstants.DEPLOY_TEST_EXTEND_SECONDS + 0.01);
+        intake.periodic();
+        assertEquals(IntakeConstants.RETRACTED_POSITION_ROTATIONS, io.target);
     }
 
-    @Test
-    void simulationStopDoesNotReapplyPositionVoltage() {
-        IntakeIOSim io = new IntakeIOSim();
-        IntakeIO.IntakeIOInputs inputs = new IntakeIO.IntakeIOInputs();
-        io.setDeployPosition(IntakeConstants.EXTENDED_POSITION_ROTATIONS);
-        io.updateInputs(inputs);
-        assertTrue(inputs.deployAppliedVolts > 0.0);
-        io.stop();
-        io.updateInputs(inputs);
-        assertEquals(0.0, inputs.deployAppliedVolts);
-        io.setCoastMode(true);
-        io.updateInputs(inputs);
-        assertFalse(inputs.deployHomed);
-        io.setCoastMode(false);
-        io.zeroRetracted();
-        io.updateInputs(inputs);
-        assertTrue(inputs.deployHomed);
+    @Test void disabledAutonomousAndTestModesNeverDriveRack() {
+        intake.periodic();
+        assertTrue(io.stopped);
+        DriverStationSim.setEnabled(true);
+        DriverStationSim.setAutonomous(true);
+        DriverStationSim.notifyNewData();
+        intake.periodic();
+        assertTrue(io.stopped);
+        DriverStationSim.setAutonomous(false);
+        DriverStationSim.setTest(true);
+        DriverStationSim.notifyNewData();
+        intake.periodic();
+        assertTrue(io.stopped);
     }
 
-    @Test
-    void deployRollOscillateAndRetract() {
-        assertTrue(HAL.initialize(500, 0));
-        FakeIO io = new FakeIO();
-        Intake intake = new Intake(io);
-        try {
-            intake.activate();
-            intake.periodic();
-            assertEquals(IntakeConstants.EXTENDED_POSITION_ROTATIONS, io.deployTarget);
-            assertEquals(IntakeConstants.ROLLER_RPM, io.rollerTarget);
+    @Test void legacyIntakeAndShotCallsCannotOverrideHardwareTest() {
+        teleop(true);
+        intake.activate();
+        intake.activateOuttake();
+        intake.setRetracted();
+        intake.setExtendedStopped();
+        intake.startShootingOscillation();
+        intake.periodic();
+        assertEquals(IntakeConstants.EXTENDED_POSITION_ROTATIONS, io.target);
+        assertEquals(0.0, io.roller);
+        assertFalse(intake.isActive());
+        assertFalse(intake.isShootingOscillationActive());
+        SimHooks.stepTiming(IntakeConstants.DEPLOY_TEST_EXTEND_SECONDS + 0.01);
+        intake.activate();
+        intake.periodic();
+        assertEquals(IntakeConstants.RETRACTED_POSITION_ROTATIONS, io.target);
+    }
 
-            intake.setExtendedStopped();
-            intake.periodic();
-            assertEquals(IntakeConstants.EXTENDED_POSITION_ROTATIONS, io.deployTarget);
-            assertEquals(0, io.rollerTarget);
-
-            intake.startShootingOscillation();
-            intake.periodic();
-            assertTrue(intake.isShootingOscillationActive());
-            assertEquals(IntakeConstants.SHOOT_OSCILLATION_FORWARD_POSITION_ROTATIONS, io.deployTarget);
-            assertEquals(0, io.rollerTarget);
-            intake.stopShootingOscillation();
-
-            intake.activateOuttake();
-            intake.periodic();
-            assertEquals(-IntakeConstants.ROLLER_RPM, io.rollerTarget);
-
-            intake.deactivate();
-            intake.periodic();
-            assertEquals(IntakeConstants.RETRACTED_POSITION_ROTATIONS, io.deployTarget);
-            assertEquals(0, io.rollerTarget);
-
-            intake.setPitCoastMode(true);
-            intake.periodic();
-            assertTrue(io.stopped);
-            assertFalse(intake.isShootingOscillationActive());
-        } finally {
-            CommandScheduler.getInstance().unregisterSubsystem(intake);
-        }
+    @Test void feedbackFaultAndPitCoastStopOutput() {
+        teleop(true);
+        io.ready = false;
+        intake.periodic();
+        assertTrue(io.stopped);
+        assertFalse(intake.isReady());
+        io.ready = true;
+        intake.setPitCoastMode(true);
+        intake.periodic();
+        assertTrue(io.stopped);
+        intake.setPitCoastMode(false);
+        intake.periodic();
+        assertFalse(io.stopped);
     }
 }

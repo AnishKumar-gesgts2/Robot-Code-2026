@@ -32,9 +32,6 @@ public interface IntakeIO {
 
     default void stop() {}
 
-    /** Only call with the robot disabled and the rack physically fully retracted. */
-    default void zeroRetracted() {}
-
-    /** Select pit coast mode; intake rollers normally remain in coast mode as well. */
+    /** Select rack coast mode. */
     default void setCoastMode(boolean coast) {}
 }

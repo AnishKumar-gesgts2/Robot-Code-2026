@@ -1,146 +1,56 @@
-TIDLE_TUMBLE INTAKE REVIEW AND FIRST TEST
-Reviewed base: 51123e0 (frc6560/Robot-Code-2026, tidle_tumble)
-Date: October 24, 2026
+INTAKE RACK MOTOR HARDWARE TEST
+Branch base: frc6560/Robot-Code-2026 tidle_tumble (51123e0)
+This replaces the earlier full-intake implementation and test procedure.
 
-FIXED
-- Real intake was replaced by empty IO because a legacy hardware flag was false.
-  The installed rack intake now has its own enabled hardware flag.
-- Startup silently assumed a retracted rack. There is no configured absolute
-  sensor or home switch. Outputs now require an explicit disabled-only zero.
-- Entering pit coast, losing rack feedback, or resetting the rack controller
-  invalidates the position reference. Re-zero before resuming.
-- Motor configuration failures were ignored. Both configurations now retry
-  three times and a failure blocks intake output. Restart code after correcting
-  configuration/CAN faults; the configuration retries happen at startup.
-- Disabled intake states could preserve roller/oscillation intent. Disabled and
-  fault states now stop both motors and clear those active states.
-- Ungated oscillation used a press edge as a held trigger, so it stopped on the
-  next scheduler cycle. It now uses the held button. Release cleanup runs before
-  starting the gated shot so it cannot cancel that new command.
-- Outtake now owns intake/feeder requirements, interrupting a shot cleanly.
-- The old 0.25-second reversal was shorter than the configured travel time:
-  two inches is about 1.66 motor rotations, requiring over 0.30 seconds at
-  5.5 rotations/second even before acceleration. Oscillation now reaches each
-  measured endpoint and dwells for 0.25 seconds before reversing.
-- Simulation stop no longer reapplies rack position voltage on its next update.
-- Java compilation now explicitly uses UTF-8; Windows default encoding failed
-  on existing GUI source characters.
+BEHAVIOR
+On each teleop enable, the X44 rack motor is commanded to full extension.
+After 3 seconds from enable, it is commanded back to zero and held retracted.
+It does not continuously cycle. Disable/re-enable teleop to repeat.
+Disabled, autonomous and Test modes stop this rack motor.
+Legacy intake/outtake buttons and shooting oscillation do not control the rack.
+The roller controller is not instantiated or driven. No roller is required.
+Other existing drivetrain/shooter/indexer controls remain as on tidle_tumble.
 
-CONFIGURED CAN INVENTORY (verify against Phoenix Tuner X on the real robot)
-Bus names are exact configuration strings; do not move intake to Canivore
-without assigning unused Talon FX IDs there and updating code.
+STARTUP ASSUMPTION
+Physically fully retract the rack BEFORE starting/restarting robot code.
+The controller's position is automatically set to zero at code startup.
+There is no dashboard homing action or automatic search for a physical home.
+Disabling/re-enabling does not re-zero the encoder; it repeats the timed cycle.
+If the rack controller resets, physically retract and restart code.
+Feedback/configuration errors stop motor output. Fix startup configuration
+errors and restart code to reapply configuration.
+Do not restart code with the rack extended: that would assign a false zero.
 
-rio:
-  Front-right drive X60 1, CANcoder 2, steering X44 3
-  Front-left drive X60 4, CANcoder 5, steering X44 6
-  Back-left drive X60 7, CANcoder 8, steering X44 9
-  Back-right drive X60 10, steering X44 12, CANcoder 12
-  Pigeon2 14
-  Intake rack X44 24; intake roller X60 25
-Canivore:
-  Shooter leader X60 15; shooter follower X60 24
-  Indexer floor Talon FX 25; indexer tunnel Talon FX 16
+CONFIGURATION
+Rack X44: rio CAN ID 24. There is no intake roller controller in this test.
+Do not change to Canivore ID 24: that address is already used by the shooter.
+Existing configured swerve and mechanism CAN addresses pass the collision test.
+Rack reduction: 64/14; pinion diameter: 1.751 inches; travel: 11 inches.
+Extension target: about 9.14 motor rotations; retracted target: 0.
+Motor inversion remains false, as specified by the original branch.
+Motion Magic cruise: 5.5 motor rotations/second; acceleration: 50 rotations/s^2.
+Position kP: 0.5; velocity feedforward kV: 0.12; normal neutral mode: brake.
+Supply/stator limits: 30/40 A. Encoder-based software limits remain enabled.
+DEPLOY_TEST_EXTEND_SECONDS in Constants.java sets the 3-second extension time.
+Three seconds includes travel time; retraction begins at that time even if
+the rack has not reached full extension. Physical travel and direction must
+agree with these inherited values for the hardware test to behave correctly.
 
-There are no duplicate bus + CTRE device type + ID addresses in the configured
-installed hardware. Talon FX 12 and CANcoder 12 are different device types.
-24/25 on rio and 24/25 on Canivore are different buses. X44 and X60 both count
-as Talon FX for collision checks. Automated tests read the actual deployed
-swerve JSON and mechanism constants to check this inventory.
-Physical addresses and wiring have NOT been measured or confirmed remotely.
-
-OTHER SETTINGS TO VERIFY
-- Team number: 6560; GradleRIO/WPILib: 2026.2.1; Phoenix 6 dependency: 26.1.2.
-  Verify the installed controller firmware is compatible with this dependency.
-- Rack reduction: 64/14 motor rotations per pinion rotation.
-- Pinion diameter: 1.751 inches; assumed usable rack travel: 11 inches.
-  Full extension is approximately 9.14 motor rotations; oscillation is 9 to
-  11 inches (about 7.48 to 9.14 motor rotations). Verify against the build.
-- Both intake motor inversion constants remain false. Direction is unverified.
-- Rack cruise 5.5 motor rotations/second; acceleration 50 rotations/second^2;
-  position kP 0.5, kV 0.12; tolerance 0.25 motor rotations (~0.30 inches).
-- Roller target 2100 mechanism RPM; reduction 1.5; motor target 3150 RPM.
-  Roller kP 0.5, kV 0.12. Gains are inherited starting values, not hardware tuned.
-- Rack supply/stator current limits 30/40 A; roller supply/stator 40/60 A.
-  Verify these against breakers, wiring and mechanical load.
-- Rack uses brake normally, rollers coast. Zero RPM now neutralizes rollers.
-  Positive software limits only protect the measured coordinate after a valid
-  zero. They cannot correct wrong direction, travel geometry, slippage, or
-  incorrect operator zeroing. No automatic hard-stop homing was added.
-
-FIRST TEST PROCEDURE
-1. Select Idle autonomous. Keep the rack and wheels clear; have a disable
-   operator ready. Confirm actual intake bus/IDs and compatible firmware first.
-2. With the robot disabled, physically put the rack fully retracted. If using
-   pit coast to move it, leave coast mode before zeroing. Driver Back toggles
-   pit coast while teleop enabled; outputs stay blocked until rack is re-zeroed.
-3. While DISABLED and Pit Coast Mode false, run dashboard command
-   "Intake/Zero Retracted (disabled only)". Do this after every code restart,
-   rack reset, rack feedback loss, or entry into pit coast. This button declares
-   the current physical position retracted; it does not move or find home.
-4. Check Intake/DeployConnected and Intake/RollerConnected true, both
-   ConfigurationStatus values OK, Intake/Homed true and Intake/Ready true.
-   DeployPositionRotations should be approximately zero. If configuration
-   failed, repair the cause and restart code to reapply it, then zero again.
-5. Enable teleop briefly; press board button 4 to extend and spin. If motion is
-   reversed, stop and correct inversion before continuing. Release 4: rollers
-   stop, rack stays extended. Board button 6 retracts and stops the rollers.
-   For the initial motion check, temporarily use a reduced extension/speed if
-   direction or clearances have not already been established mechanically.
-6. Verify measured rack travel agrees with the configured limits without
-   contacting a hard stop, and positive rollers pull pieces into the robot.
-   Check deploy current/voltage/temperature logs and actual roller RPM. Do not
-   increase gains to overcome a jam or a wrong position reference.
-7. Hold driver B: extend and reverse rollers. Release B: retract and stop.
-8. Board button 9 holds oscillation with rollers stopped. Confirm both measured
-   endpoints and the endpoint dwell. Release starts the legacy gated-shot
-   command; button 10 cancels it. This only validates intake oscillation, not
-   ball feeding or shooter targeting on this installed hardware.
-9. Disable during intake/outtake/oscillation. Both motors should neutralize,
-   oscillation should clear, and rollers should stay stopped after re-enable
-   until a new intake command. Commands can still request rack position on
-   re-enable; keep the rack clear. Test coast exit/re-zero separately.
-10. Watch CAN/rio and CAN/Canivore utilization/error logs and confirm no
-    growing bus-off/receive/transmit errors while mechanisms run together.
-
-CURRENT CONTROL MAP
-Driver Xbox USB 0; operator/button board USB 1 (11 buttons used).
-Board 4: intake while held, release leaves rack extended/stopped.
-Board 6: retract. Driver B: outtake while held, release retracts.
-Driver Back: pit coast toggle. Board 9/10: legacy shooting/oscillation controls.
-Board 3: floor + tunnel. Board 11: shooter spin-up.
-Driver right bumper: shooter 3000 RPM + floor. Right trigger: tunnel only.
-Operator A is also bound to shooter/floor, on the SAME USB port as the board:
-if board button 1 is an ordinary button it will trigger that Xbox A binding.
-
-LIMITS OF THIS REVIEW / OTHER ROBOT TESTS
-Legacy turret and feeder remain physically absent according to the branch's
-hardware flags and use empty IO on the real robot. The older Turkish Delight
-autos and gated-shot commands still depend on those subsystems; they are NOT
-validated full-robot scoring routines. ShotCommand also does not set shooter
-or turret goals; the manual controls are the configured real scoring path.
-The manual bumper/trigger and center_auto do not start intake oscillation.
-center_auto requests 4000 RPM but Shooter caps it at MAX_RPM = 3800; verify
-desired shot speed before using that autonomous. No automatic feeding or
-shooter tuning changes were inferred from these mismatches.
-The default shooter idle is zero in enabled teleop, but 1000 RPM outside
-teleop. Choosing Idle autonomous does not suppress the shooter's default
-command; enabling autonomous can spin the shooter even with Idle selected.
-
-The swerve offsets, gyro orientation, camera calibration, actual CAN wiring,
-mechanical endpoints, motor direction and current behavior need robot tests.
-Desktop tests use fake/simple simulation IO and cannot certify those values.
-Desktop Phoenix/YAGSL startup may report simulated CAN devices as stale;
-that is not a physical robot CAN diagnosis.
+TEST
+1. Fully retract the rack, then deploy/start the code. Keep its path clear.
+2. Check Intake/DeployConnected, Intake/Ready and configuration/zero status.
+3. Enable TELEOP: rack should extend immediately.
+4. At 3 seconds, rack should retract and remain there.
+5. Disable at any time to stop output. Re-enable teleop to run the cycle again.
+6. Confirm actual travel, direction, current and applied voltage. If motion is
+   reversed or the rack contacts a hard stop, disable and correct the settings.
+Dashboard: Intake/DeployPositionRotations, Intake/DeployTargetRotations,
+Intake/DeployConnected, Intake/Ready, Intake/DeployConfigurationStatus,
+Intake/ZeroStatus. Current/voltage/temperature are recorded in Intake logs.
 
 VALIDATION
-BUILD SUCCESSFUL with Java 17; all 29 JUnit tests passed. Run
-./gradlew.bat build to repeat. Tests cover installed CAN address
-collisions, target bounds, intake/outtake states, disabled/fault stop behavior,
-disabled-only zeroing, endpoint oscillation/dwell, state restoration, simulation
-stop, real control bindings and existing shooter/indexer/shot calculation tests.
-No code was deployed to a robot during this review.
-
-REFERENCES
-https://github.com/frc6560/Robot-Code-2026/tree/tidle_tumble
-https://docs.ctre-phoenix.com/en/stable/ch02_PrimerCAN.html
-https://v6.docs.ctr-electronics.com/en/stable/docs/api-reference/device-specific/index.html
+Java 17 / WPILib 2026.2.1 / Phoenix 6 26.1.2.
+Tests cover teleop timing, one cycle then hold, repeat after re-enable, stop
+on disable/non-teleop/fault/coast, and immunity to old intake/shot commands.
+Existing shooter/indexer/driver tests and configured CAN address checks remain.
+No hardware deployment or physical verification was performed.

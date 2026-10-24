@@ -133,9 +133,6 @@ public class RobotContainer {
       autoChooser = new AutoModeChooser(factory, indexer);
       SmartDashboard.putData("Auto Chooser", autoChooser.getAutoChooser());
       SmartDashboard.putBoolean("Pit Coast Mode", false);
-      // Operator must physically retract the rack before running this while disabled.
-      SmartDashboard.putData("Intake/Zero Retracted (disabled only)",
-          Commands.runOnce(intake::zeroRetracted, intake).ignoringDisable(true));
 
       List<LimelightVision> limelights = new ArrayList<LimelightVision>();
       for(String name : LimelightConstants.LIMELIGHT_NAMES) {
@@ -272,18 +269,16 @@ public class RobotContainer {
 
         // --- SHOTS ---
         
-        Trigger shootTrigger = new Trigger(m_Controls::getShootTrigger)
-            .and(DriverStation::isTeleopEnabled).and(() -> !pitCoastMode);
+        Trigger shootTrigger = new Trigger(m_Controls::getShootTrigger);
         Trigger shootReleaseTrigger = new Trigger(m_Controls::getShootReleaseTrigger);
-        Trigger ungatedShootTrigger = new Trigger(() -> m_Controls.getButtonActivated(9))
-            .and(DriverStation::isTeleopEnabled).and(() -> !pitCoastMode);
-        Trigger driverAimedShootTrigger = driverXbox.y().and(DriverStation::isTeleopEnabled)
-            .and(() -> !pitCoastMode);
+        Trigger ungatedShootTrigger = new Trigger(m_Controls::getUngatedShootTrigger);
+        Trigger driverAimedShootTrigger = driverXbox.y().and(DriverStation::isTeleopEnabled);
 
         // Hold driver Y to run the gated shot while the chassis aims at the hub.
         driverAimedShootTrigger.onTrue(Commands.runOnce(this::scheduleAimedShotCommand));
         driverAimedShootTrigger.onFalse(Commands.runOnce(this::cancelShotCommand));
 
+        shootTrigger.onTrue(Commands.runOnce(this::scheduleShotCommand));
         shootReleaseTrigger.onTrue(Commands.runOnce(this::cancelShotCommand));
         ungatedShootTrigger.onTrue(Commands.sequence(
             Commands.runOnce(this::cancelShotCommand),
@@ -295,14 +290,11 @@ public class RobotContainer {
             feeder.setShooting(false);
             intake.stopShootingOscillation();
         }, feeder, intake));
-        // Release of button 9 starts a gated shot. Clean up ungated first so its
-        // requirement-owning cleanup cannot cancel the newly scheduled shot.
-        shootTrigger.onTrue(Commands.runOnce(this::scheduleShotCommand));
 
         // Driver 2 button 3 runs the flat indexer and tunnel together above.
 
         Trigger intakeRoller = new Trigger(() -> m_Controls.getButtonActivated(4))
-            .and(DriverStation::isTeleopEnabled).and(() -> !pitCoastMode);
+            .and(DriverStation::isTeleopEnabled);
         intakeRoller.onTrue(Commands.runOnce(() -> {
             intake.activate();
             feeder.setIntaking(true);
@@ -319,16 +311,14 @@ public class RobotContainer {
             }, intake, feeder));
 
         // --- OUTTAKE/DEJAM ---
-        Trigger outtake = driverXbox.b().and(DriverStation::isTeleopEnabled)
-            .and(() -> !pitCoastMode);
-        outtake.onTrue(Commands.runOnce(() -> {
+        driverXbox.b().onTrue(Commands.runOnce(() -> {
             intake.activateOuttake();
             feeder.setOuttaking(true);
-        }, intake, feeder));
-        outtake.onFalse(Commands.runOnce(() -> {
+        }));
+        driverXbox.b().onFalse(Commands.runOnce(() -> {
             intake.deactivate();
             feeder.setOuttaking(false);
-        }, intake, feeder));
+        }));
 
         // --- RESETS ---
         Trigger resetPoseTrigger = new Trigger(m_Controls::getVisionResetTrigger);

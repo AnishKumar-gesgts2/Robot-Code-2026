@@ -26,7 +26,6 @@ class HardwareConfigurationTest {
         add(Constants.IndexerConstants.CAN_BUS, "talonfx", Constants.IndexerConstants.TUNNEL_MOTOR_ID);
         if (Constants.HardwareConstants.RACK_INTAKE_INSTALLED) {
             add(Constants.IntakeConstants.CAN_BUS, "talonfx", Constants.IntakeConstants.DEPLOY_MOTOR_ID);
-            add(Constants.IntakeConstants.CAN_BUS, "talonfx", Constants.IntakeConstants.ROLLER_MOTOR_ID);
         }
         if (Constants.HardwareConstants.LEGACY_TURRET_INSTALLED) {
             add("rio", "talonfx", Constants.TurretConstants.MOTOR_ID);
@@ -57,14 +56,15 @@ class HardwareConfigurationTest {
     }
 
     @Test
-    void rackTargetsAndRollerSpeedFitConfiguredHardware() {
+    void rackTestTargetAndTimingFitConfiguredTravel() {
         assertTrue(Constants.IntakeConstants.RETRACTED_POSITION_ROTATIONS
             < Constants.IntakeConstants.SHOOT_OSCILLATION_REAR_POSITION_ROTATIONS);
         assertTrue(Constants.IntakeConstants.SHOOT_OSCILLATION_REAR_POSITION_ROTATIONS
             < Constants.IntakeConstants.SHOOT_OSCILLATION_FORWARD_POSITION_ROTATIONS);
         assertTrue(Constants.IntakeConstants.SHOOT_OSCILLATION_FORWARD_POSITION_ROTATIONS
             <= Constants.IntakeConstants.EXTENDED_POSITION_ROTATIONS);
-        assertTrue(Constants.IntakeConstants.ROLLER_RPM * Constants.IntakeConstants.ROLLER_GEARING
-            < 6000.0, "Roller target exceeds approximate X60 free speed");
+        assertTrue(Constants.IntakeConstants.DEPLOY_TEST_EXTEND_SECONDS
+            > Constants.IntakeConstants.EXTENDED_POSITION_ROTATIONS
+                / Constants.IntakeConstants.DEPLOY_CRUISE_VELOCITY_RPS);
     }
 }

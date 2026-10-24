@@ -572,6 +572,7 @@ public final class Constants {
 
     public static final boolean DEPLOY_MOTOR_INVERTED = false;
     public static final boolean ROLLER_MOTOR_INVERTED = false;
+    public static final double DEPLOY_TEST_EXTEND_SECONDS = 3.0;
 
     // Current Limits
     public static final double DEPLOY_SUPPLY_CURRENT_LIMIT = 30.0;
