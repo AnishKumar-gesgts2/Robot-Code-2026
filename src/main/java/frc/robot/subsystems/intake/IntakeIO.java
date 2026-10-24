@@ -12,6 +12,7 @@ public interface IntakeIO {
         public String deployConfigurationStatus = "Not configured";
         public String rollerConfigurationStatus = "Not configured";
         public String zeroStatus = "Not zeroed";
+        public String deployControlStatus = "No request";
         public double deployPositionRotations = 0.0;
         public double deployVelocityRPS = 0.0;
         public double deployAppliedVolts = 0.0;

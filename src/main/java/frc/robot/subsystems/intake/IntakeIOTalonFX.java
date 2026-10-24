@@ -19,6 +19,7 @@ public class IntakeIOTalonFX implements IntakeIO {
     private final StatusCode configurationStatus;
     private boolean homed;
     private String zeroStatus;
+    private String controlStatus = "No request";
 
     public IntakeIOTalonFX() {
         TalonFXConfiguration config = new TalonFXConfiguration();
@@ -55,8 +56,10 @@ public class IntakeIOTalonFX implements IntakeIO {
 
     @Override
     public void updateInputs(IntakeIOInputs inputs) {
-        boolean fresh = BaseStatusSignal.refreshAll(motor.getPosition(), motor.getVelocity(),
-            motor.getMotorVoltage(), motor.getSupplyCurrent(), motor.getDeviceTemp()).isOK();
+        // Only motion feedback determines connection readiness; stale temperature
+        // or current telemetry must not suppress an otherwise valid position command.
+        boolean fresh = BaseStatusSignal.refreshAll(motor.getPosition(), motor.getVelocity()).isOK();
+        BaseStatusSignal.refreshAll(motor.getMotorVoltage(), motor.getSupplyCurrent(), motor.getDeviceTemp());
         if (motor.hasResetOccurred()) {
             homed = false;
             zeroStatus = "Rack controller reset: physically retract and restart code";
@@ -66,6 +69,7 @@ public class IntakeIOTalonFX implements IntakeIO {
         inputs.deployHomed = homed;
         inputs.deployConfigurationStatus = configurationStatus.toString();
         inputs.zeroStatus = zeroStatus;
+        inputs.deployControlStatus = controlStatus;
         inputs.deployPositionRotations = motor.getPosition().getValueAsDouble();
         inputs.deployVelocityRPS = motor.getVelocity().getValueAsDouble();
         inputs.deployAppliedVolts = motor.getMotorVoltage().getValueAsDouble();
@@ -76,8 +80,9 @@ public class IntakeIOTalonFX implements IntakeIO {
     @Override
     public void setDeployPosition(double rotations) {
         if (homed && configurationStatus.isOK() && Double.isFinite(rotations)) {
-            motor.setControl(request.withPosition(MathUtil.clamp(rotations,
-                IntakeConstants.RETRACTED_POSITION_ROTATIONS, IntakeConstants.EXTENDED_POSITION_ROTATIONS)));
+            controlStatus = motor.setControl(request.withPosition(MathUtil.clamp(rotations,
+                IntakeConstants.RETRACTED_POSITION_ROTATIONS, IntakeConstants.EXTENDED_POSITION_ROTATIONS)))
+                .toString();
         } else {
             stop();
         }

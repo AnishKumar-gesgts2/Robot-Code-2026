@@ -5,6 +5,7 @@ import edu.wpi.first.hal.HAL;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import edu.wpi.first.wpilibj.simulation.SimHooks;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.Constants.IntakeConstants;
 import org.junit.jupiter.api.*;
 
@@ -14,10 +15,12 @@ class IntakeTest {
         double roller;
         boolean stopped;
         boolean ready = true;
+        boolean configured = true;
+        boolean homed = true;
         @Override public void updateInputs(IntakeIOInputs inputs) {
             inputs.deployConnected = ready;
-            inputs.configured = ready;
-            inputs.deployHomed = ready;
+            inputs.configured = ready && configured;
+            inputs.deployHomed = ready && homed;
             // No roller is connected or required for the rack-only test.
         }
         @Override public void setDeployPosition(double position) { target = position; stopped = false; }
@@ -67,6 +70,42 @@ class IntakeTest {
         intake.periodic();
         assertEquals(IntakeConstants.RETRACTED_POSITION_ROTATIONS, io.target);
         assertEquals(0.0, io.roller);
+    }
+
+    @Test void delayedMotorReadinessDoesNotConsumeExtensionWindow() {
+        io.ready = false;
+        teleop(true);
+        SimHooks.stepTiming(5.0);
+        intake.periodic();
+        assertTrue(io.stopped);
+        assertFalse(SmartDashboard.getBoolean("Intake/TestStarted", true));
+        assertTrue(SmartDashboard.getString("Intake/BlockedReason", "").contains("26"));
+        io.ready = true;
+        intake.periodic();
+        assertFalse(io.stopped);
+        assertEquals(IntakeConstants.EXTENDED_POSITION_ROTATIONS, io.target);
+        SimHooks.stepTiming(IntakeConstants.DEPLOY_TEST_EXTEND_SECONDS - 0.01);
+        intake.periodic();
+        assertEquals(IntakeConstants.EXTENDED_POSITION_ROTATIONS, io.target);
+        SimHooks.stepTiming(0.02);
+        intake.periodic();
+        assertEquals(IntakeConstants.RETRACTED_POSITION_ROTATIONS, io.target);
+    }
+
+    @Test void configurationAndZeroFailuresHaveVisibleReasonsAndBlockMotion() {
+        io.configured = false;
+        teleop(true);
+        assertTrue(io.stopped);
+        assertTrue(SmartDashboard.getString("Intake/BlockedReason", "").contains("configuration failed"));
+        io.configured = true;
+        io.homed = false;
+        intake.periodic();
+        assertTrue(io.stopped);
+        assertTrue(SmartDashboard.getString("Intake/BlockedReason", "").contains("zero failed"));
+        io.homed = true;
+        intake.periodic();
+        assertFalse(io.stopped);
+        assertEquals("None", SmartDashboard.getString("Intake/BlockedReason", ""));
     }
 
     @Test void disableStopsImmediatelyAndNextTeleopEnableRepeatsTest() {

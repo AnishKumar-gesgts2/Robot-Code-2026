@@ -566,7 +566,7 @@ public final class Constants {
     private IntakeConstants() {}
 
     // CAN IDs. The rack is a Kraken X44 and the roller is a Kraken X60.
-    public static final int DEPLOY_MOTOR_ID = 24;
+    public static final int DEPLOY_MOTOR_ID = 26;
     public static final int ROLLER_MOTOR_ID = 25;
     public static final String CAN_BUS = "rio";
 

@@ -11,7 +11,7 @@ import frc.robot.Constants.IntakeConstants;
 public class Intake extends SubsystemBase {
     private final IntakeIO io;
     private final IntakeIOInputsAutoLogged inputs = new IntakeIOInputsAutoLogged();
-    private boolean wasTeleopEnabled;
+    private boolean testStarted;
     private boolean pitCoastMode;
     private double enableTime;
     private double target = IntakeConstants.RETRACTED_POSITION_ROTATIONS;
@@ -59,16 +59,20 @@ public class Intake extends SubsystemBase {
         io.updateInputs(inputs);
         Logger.processInputs("Intake", inputs);
         boolean teleopEnabled = DriverStation.isTeleopEnabled();
-        if (teleopEnabled && !wasTeleopEnabled) {
-            enableTime = Timer.getFPGATimestamp();
+        if (!teleopEnabled) {
+            testStarted = false;
         }
-        wasTeleopEnabled = teleopEnabled;
-        // Three seconds includes outward travel; this runs once per teleop enable.
-        target = teleopEnabled && Timer.getFPGATimestamp() - enableTime
+        // Do not spend the entire outward test window waiting for CAN readiness.
+        if (teleopEnabled && !testStarted && !pitCoastMode && isReady()) {
+            enableTime = Timer.getFPGATimestamp();
+            testStarted = true;
+        }
+        // Three seconds includes outward travel, starting with the first ready command.
+        target = teleopEnabled && testStarted && Timer.getFPGATimestamp() - enableTime
                 < IntakeConstants.DEPLOY_TEST_EXTEND_SECONDS
             ? IntakeConstants.EXTENDED_POSITION_ROTATIONS
             : IntakeConstants.RETRACTED_POSITION_ROTATIONS;
-        if (teleopEnabled && !pitCoastMode && isReady()) {
+        if (teleopEnabled && testStarted && !pitCoastMode && isReady()) {
             io.setDeployPosition(target);
         } else {
             io.stop();
@@ -78,6 +82,21 @@ public class Intake extends SubsystemBase {
         SmartDashboard.putBoolean("Intake/DeployConnected", inputs.deployConnected);
         SmartDashboard.putString("Intake/DeployConfigurationStatus", inputs.deployConfigurationStatus);
         SmartDashboard.putString("Intake/ZeroStatus", inputs.zeroStatus);
+        String blockedReason = !teleopEnabled ? "Teleop is not enabled"
+            : pitCoastMode ? "Pit coast mode is on"
+            : !inputs.deployConnected ? "No rack feedback: check " + IntakeConstants.CAN_BUS
+                + " CAN ID " + IntakeConstants.DEPLOY_MOTOR_ID + ", power and wiring"
+            : !inputs.configured ? "Motor configuration failed: see configuration status; restart after fixing"
+            : !inputs.deployHomed ? "Startup zero failed or controller reset: retract and restart code"
+            : "None";
+        SmartDashboard.putString("Intake/BlockedReason", blockedReason);
+        SmartDashboard.putString("Intake/DeployControlStatus", inputs.deployControlStatus);
+        SmartDashboard.putNumber("Intake/DeployCANID", IntakeConstants.DEPLOY_MOTOR_ID);
+        SmartDashboard.putString("Intake/DeployCANBus", IntakeConstants.CAN_BUS);
+        SmartDashboard.putNumber("Intake/DeployAppliedVolts", inputs.deployAppliedVolts);
+        SmartDashboard.putNumber("Intake/DeployCurrentAmps", inputs.deployCurrentAmps);
+        SmartDashboard.putBoolean("Intake/TestStarted", testStarted);
+        Logger.recordOutput("Intake/BlockedReason", blockedReason);
         SmartDashboard.putNumber("Intake/DeployPositionRotations", inputs.deployPositionRotations);
         SmartDashboard.putNumber("Intake/DeployTargetRotations", target);
         Logger.recordOutput("Intake/DeployTargetRotations", target);

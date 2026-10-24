@@ -1,6 +1,7 @@
 package frc.robot;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -57,6 +58,8 @@ class HardwareConfigurationTest {
 
     @Test
     void rackTestTargetAndTimingFitConfiguredTravel() {
+        assertEquals(26, Constants.IntakeConstants.DEPLOY_MOTOR_ID,
+            "Extension motor's confirmed CAN ID");
         assertTrue(Constants.IntakeConstants.RETRACTED_POSITION_ROTATIONS
             < Constants.IntakeConstants.SHOOT_OSCILLATION_REAR_POSITION_ROTATIONS);
         assertTrue(Constants.IntakeConstants.SHOOT_OSCILLATION_REAR_POSITION_ROTATIONS
