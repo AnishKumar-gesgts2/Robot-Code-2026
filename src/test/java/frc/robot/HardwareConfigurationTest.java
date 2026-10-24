@@ -60,6 +60,8 @@ class HardwareConfigurationTest {
     void rackTestTargetAndTimingFitConfiguredTravel() {
         assertEquals(26, Constants.IntakeConstants.DEPLOY_MOTOR_ID,
             "Extension motor's confirmed CAN ID");
+        assertEquals("Canivore", Constants.IntakeConstants.CAN_BUS,
+            "Extension motor is wired to the CANivore");
         assertTrue(Constants.IntakeConstants.RETRACTED_POSITION_ROTATIONS
             < Constants.IntakeConstants.SHOOT_OSCILLATION_REAR_POSITION_ROTATIONS);
         assertTrue(Constants.IntakeConstants.SHOOT_OSCILLATION_REAR_POSITION_ROTATIONS
