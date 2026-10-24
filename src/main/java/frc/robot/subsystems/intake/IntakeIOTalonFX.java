@@ -2,6 +2,8 @@ package frc.robot.subsystems.intake;
 
 import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.StatusSignal;
+import com.ctre.phoenix6.StatusCode;
+import edu.wpi.first.math.MathUtil;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.VelocityVoltage;
@@ -22,6 +24,11 @@ public class IntakeIOTalonFX implements IntakeIO {
     private final TalonFX rollerMotor = new TalonFX(IntakeConstants.ROLLER_MOTOR_ID, IntakeConstants.CAN_BUS);
     private final MotionMagicVoltage deployRequest = new MotionMagicVoltage(0).withSlot(0);
     private final VelocityVoltage rollerRequest = new VelocityVoltage(0).withSlot(0);
+    private StatusCode deployConfigurationStatus;
+    private StatusCode rollerConfigurationStatus;
+    private String zeroStatus = "Not zeroed: physically retract rack, then zero while disabled";
+    private boolean homed;
+    private boolean coastMode;
 
     private final StatusSignal<Angle> deployPosition = deployMotor.getPosition();
     private final StatusSignal<AngularVelocity> deployVelocity = deployMotor.getVelocity();
@@ -36,8 +43,7 @@ public class IntakeIOTalonFX implements IntakeIO {
     public IntakeIOTalonFX() {
         configureDeployMotor();
         configureRollerMotor();
-        // Without an absolute sensor or limit switch, the intake must boot mechanically retracted.
-        deployMotor.setPosition(IntakeConstants.RETRACTED_POSITION_ROTATIONS);
+        // A relative encoder cannot establish rack position on boot. Require an explicit zero.
         BaseStatusSignal.setUpdateFrequencyForAll(50.0,
             deployPosition, deployVelocity, deployVoltage, deployCurrent, deployTemp,
             rollerVelocity, rollerVoltage, rollerCurrent, rollerTemp);
@@ -62,7 +68,7 @@ public class IntakeIOTalonFX implements IntakeIO {
         config.SoftwareLimitSwitch.ReverseSoftLimitThreshold = IntakeConstants.RETRACTED_POSITION_ROTATIONS;
         config.SoftwareLimitSwitch.ForwardSoftLimitEnable = true;
         config.SoftwareLimitSwitch.ForwardSoftLimitThreshold = IntakeConstants.EXTENDED_POSITION_ROTATIONS;
-        deployMotor.getConfigurator().apply(config);
+        deployConfigurationStatus = applyWithRetry(deployMotor, config);
     }
 
     private void configureRollerMotor() {
@@ -76,13 +82,46 @@ public class IntakeIOTalonFX implements IntakeIO {
         config.CurrentLimits.StatorCurrentLimit = IntakeConstants.ROLLER_STATOR_CURRENT_LIMIT;
         config.Slot0.kP = IntakeConstants.ROLLER_kP;
         config.Slot0.kV = IntakeConstants.ROLLER_kV;
-        rollerMotor.getConfigurator().apply(config);
+        rollerConfigurationStatus = applyWithRetry(rollerMotor, config);
+    }
+
+    private static StatusCode applyWithRetry(TalonFX motor, TalonFXConfiguration config) {
+        StatusCode status = motor.getConfigurator().apply(config, 0.1);
+        for (int attempt = 1; attempt < 3 && !status.isOK(); attempt++) {
+            status = motor.getConfigurator().apply(config, 0.1);
+        }
+        return status;
+    }
+
+    @Override
+    public void zeroRetracted() {
+        if (coastMode || !deployConfigurationStatus.isOK() || !rollerConfigurationStatus.isOK()) {
+            return;
+        }
+        // Consume an already-observed reset before setting the new reference.
+        deployMotor.hasResetOccurred();
+        StatusCode status = deployMotor.setPosition(IntakeConstants.RETRACTED_POSITION_ROTATIONS);
+        homed = status.isOK();
+        zeroStatus = status.toString();
     }
 
     @Override
     public void updateInputs(IntakeIOInputs inputs) {
-        BaseStatusSignal.refreshAll(deployPosition, deployVelocity, deployVoltage, deployCurrent,
-            deployTemp, rollerVelocity, rollerVoltage, rollerCurrent, rollerTemp);
+        boolean deployFresh = BaseStatusSignal.refreshAll(deployPosition, deployVelocity,
+            deployVoltage, deployCurrent, deployTemp).isOK();
+        boolean rollerFresh = BaseStatusSignal.refreshAll(rollerVelocity, rollerVoltage,
+            rollerCurrent, rollerTemp).isOK();
+        if (deployMotor.hasResetOccurred() || !deployFresh) {
+            homed = false;
+            zeroStatus = "Rack reset or feedback lost: re-zero while disabled";
+        }
+        inputs.deployConnected = deployFresh && deployMotor.isConnected();
+        inputs.rollerConnected = rollerFresh && rollerMotor.isConnected();
+        inputs.configured = deployConfigurationStatus.isOK() && rollerConfigurationStatus.isOK();
+        inputs.deployHomed = homed;
+        inputs.deployConfigurationStatus = deployConfigurationStatus.toString();
+        inputs.rollerConfigurationStatus = rollerConfigurationStatus.toString();
+        inputs.zeroStatus = zeroStatus;
         inputs.deployPositionRotations = deployPosition.getValueAsDouble();
         inputs.deployVelocityRPS = deployVelocity.getValueAsDouble();
         inputs.deployAppliedVolts = deployVoltage.getValueAsDouble();
@@ -96,12 +135,21 @@ public class IntakeIOTalonFX implements IntakeIO {
 
     @Override
     public void setRollerRPM(double rpm) {
-        rollerMotor.setControl(rollerRequest.withVelocity(rpm / 60.0 * IntakeConstants.ROLLER_GEARING));
+        if (rpm == 0.0) {
+            rollerMotor.stopMotor();
+        } else {
+            rollerMotor.setControl(rollerRequest.withVelocity(rpm / 60.0 * IntakeConstants.ROLLER_GEARING));
+        }
     }
 
     @Override
     public void setDeployPosition(double motorRotations) {
-        deployMotor.setControl(deployRequest.withPosition(motorRotations));
+        if (homed && !coastMode && Double.isFinite(motorRotations)) {
+            deployMotor.setControl(deployRequest.withPosition(MathUtil.clamp(motorRotations,
+                IntakeConstants.RETRACTED_POSITION_ROTATIONS, IntakeConstants.EXTENDED_POSITION_ROTATIONS)));
+        } else {
+            deployMotor.stopMotor();
+        }
     }
 
     @Override
@@ -112,6 +160,11 @@ public class IntakeIOTalonFX implements IntakeIO {
 
     @Override
     public void setCoastMode(boolean coast) {
+        coastMode = coast;
+        if (coast) {
+            homed = false;
+            zeroStatus = "Rack moved in coast: re-zero while disabled";
+        }
         deployMotor.setNeutralMode(coast ? NeutralModeValue.Coast : NeutralModeValue.Brake);
         rollerMotor.setNeutralMode(NeutralModeValue.Coast);
     }

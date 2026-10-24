@@ -18,7 +18,6 @@ import frc.robot.Constants.IndexerConstants;
 public class IndexerIOTalonFX implements IndexerIO {
     private static final double CURRENT_LIMIT_AMPS = 40.0;
     private static final double STATUS_FREQUENCY_HZ = 50.0;
-    private static final String CAN_BUS = "Canivore";
 
     private final TalonFX floorLeader;
     private final TalonFX tunnelMotor;
@@ -42,7 +41,7 @@ public class IndexerIOTalonFX implements IndexerIO {
     public IndexerIOTalonFX(
             int floorLeaderId,
             int tunnelMotorId) {
-        this(floorLeaderId, tunnelMotorId, new CANBus(CAN_BUS));
+        this(floorLeaderId, tunnelMotorId, new CANBus(IndexerConstants.CAN_BUS));
     }
 
     public IndexerIOTalonFX(

@@ -1,6 +1,7 @@
 package frc.robot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
@@ -16,6 +17,7 @@ import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.subsystems.indexer.Indexer;
 import frc.robot.subsystems.intake.Intake;
 import frc.robot.subsystems.shooter.Shooter;
@@ -117,6 +119,29 @@ class RobotContainerDriverControlsTest {
         assertTargets(shooter, indexer, 0.0, 1000.0, 1500.0);
         setDriver2Controls(false, false);
         assertTargets(shooter, indexer, 0.0, 0.0, 1500.0);
+
+        setControls(false, false);
+        // Ungated oscillation must persist for the entire hold, then hand off to
+        // the gated shot without the release cleanup cancelling that new command.
+        setDriver2Button(9, true);
+        assertTrue(intake.isShootingOscillationActive());
+        runCycles(5);
+        assertTrue(intake.isShootingOscillationActive());
+        setDriver2Button(9, false);
+        Command shot = getField(container, "shotCommand", Command.class);
+        assertTrue(scheduler.isScheduled(shot));
+        assertTrue(intake.isShootingOscillationActive());
+        // Outtake owns intake/feeder and interrupts the shot cleanly.
+        DriverStationSim.setJoystickButton(0, XboxController.Button.kB.value, true);
+        DriverStationSim.notifyNewData();
+        runCycles(3);
+        assertFalse(scheduler.isScheduled(shot));
+        assertFalse(intake.isShootingOscillationActive());
+        assertEquals(Intake.State.EXTENDED_OUTTAKING, intake.getState());
+        DriverStationSim.setJoystickButton(0, XboxController.Button.kB.value, false);
+        DriverStationSim.notifyNewData();
+        runCycles(3);
+        assertEquals(Intake.State.RETRACTED_STOPPED, intake.getState());
 
         setControls(true, true);
         DriverStationSim.setEnabled(false);
