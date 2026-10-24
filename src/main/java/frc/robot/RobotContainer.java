@@ -55,9 +55,6 @@ import org.littletonrobotics.junction.Logger;
 
 
 public class RobotContainer {
-    private static final int INDEXER_FLOOR_LEADER_ID = 25;
-    private static final int INDEXER_TUNNEL_MOTOR_ID = 16;
-
     // Controllers
     private final CommandXboxController driverXbox = new CommandXboxController(0);
     private final CommandXboxController operatorXbox = new CommandXboxController(1);
@@ -101,8 +98,8 @@ public class RobotContainer {
 
       indexer = switch (indexerMode) {
         case REAL -> new Indexer(new IndexerIOTalonFX(
-            INDEXER_FLOOR_LEADER_ID,
-            INDEXER_TUNNEL_MOTOR_ID));
+            Constants.IndexerConstants.FLOOR_MOTOR_ID,
+            Constants.IndexerConstants.TUNNEL_MOTOR_ID));
         case SIM -> new Indexer(new IndexerIOSim());
         case REPLAY -> new Indexer(new IndexerIO() {});
       };
@@ -114,7 +111,7 @@ public class RobotContainer {
             ? new TurretIOTalonFX() : new TurretIO() {});
         feeder = new Feeder(Constants.HardwareConstants.LEGACY_FEEDER_INSTALLED
             ? new FeederIOTalonFX() : new FeederIO() {});
-        intake = new Intake(Constants.HardwareConstants.LEGACY_INTAKE_INSTALLED
+        intake = new Intake(Constants.HardwareConstants.RACK_INTAKE_INSTALLED
             ? new IntakeIOTalonFX() : new IntakeIO() {});
         led = new LED(new LEDIOAddressable(3, 65), shooter, turret, shotCalculator);
       } else {

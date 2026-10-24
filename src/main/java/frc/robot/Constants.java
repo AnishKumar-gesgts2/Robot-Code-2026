@@ -31,7 +31,7 @@ public final class Constants {
   public static final class HardwareConstants {
     public static final boolean LEGACY_TURRET_INSTALLED = false;
     public static final boolean LEGACY_FEEDER_INSTALLED = false;
-    public static final boolean LEGACY_INTAKE_INSTALLED = false;
+    public static final boolean RACK_INTAKE_INSTALLED = true;
 
     private HardwareConstants() {}
   }
@@ -549,6 +549,9 @@ public final class Constants {
   }
 
   public static final class IndexerConstants {
+    public static final int FLOOR_MOTOR_ID = 25;
+    public static final int TUNNEL_MOTOR_ID = 16;
+    public static final String CAN_BUS = "Canivore";
     public static final double FLOOR_RUNNING_RPM = 1000.0;
     public static final double TUNNEL_RUNNING_RPM = 1500.0;
     /** Motor rotations per mechanism rotation; retained from the indexer hardware configuration. */
@@ -563,12 +566,13 @@ public final class Constants {
     private IntakeConstants() {}
 
     // CAN IDs. The rack is a Kraken X44 and the roller is a Kraken X60.
-    public static final int DEPLOY_MOTOR_ID = 24;
+    public static final int DEPLOY_MOTOR_ID = 26;
     public static final int ROLLER_MOTOR_ID = 25;
-    public static final String CAN_BUS = "rio";
+    public static final String CAN_BUS = "Canivore";
 
     public static final boolean DEPLOY_MOTOR_INVERTED = false;
     public static final boolean ROLLER_MOTOR_INVERTED = false;
+    public static final double DEPLOY_TEST_EXTEND_SECONDS = 3.0;
 
     // Current Limits
     public static final double DEPLOY_SUPPLY_CURRENT_LIMIT = 30.0;
@@ -606,6 +610,7 @@ public final class Constants {
         9.0 / INCHES_PER_PINION_ROTATION * DEPLOY_GEAR_RATIO;
     public static final double SHOOT_OSCILLATION_FORWARD_POSITION_ROTATIONS =
         EXTENDED_POSITION_ROTATIONS;
+    // Minimum dwell at each measured endpoint; travel time is additional.
     public static final double SHOOT_OSCILLATION_HALF_PERIOD_SECONDS = 0.25;
   }
 

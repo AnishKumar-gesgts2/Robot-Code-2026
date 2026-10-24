@@ -1,0 +1,80 @@
+INTAKE RACK MOTOR HARDWARE TEST
+Branch base: frc6560/Robot-Code-2026 tidle_tumble (51123e0)
+This replaces the earlier full-intake implementation and test procedure.
+
+BEHAVIOR
+On each teleop enable, the X44 rack motor is commanded to full extension.
+After 3 seconds from the first ready motor command, it is commanded back to zero and held retracted.
+It does not continuously cycle. Disable/re-enable teleop to repeat.
+Disabled, autonomous and Test modes stop this rack motor.
+Legacy intake/outtake buttons and shooting oscillation do not control the rack.
+The roller controller is not instantiated or driven. No roller is required.
+Other existing drivetrain/shooter/indexer controls remain as on tidle_tumble.
+
+STARTUP ASSUMPTION
+Physically fully retract the rack BEFORE starting/restarting robot code.
+The controller's position is automatically set to zero at code startup.
+There is no dashboard homing action or automatic search for a physical home.
+Disabling/re-enabling does not re-zero the encoder; it repeats the timed cycle.
+If the rack controller resets, physically retract and restart code.
+Feedback/configuration errors stop motor output. Fix startup configuration
+errors and restart code to reapply configuration.
+Do not restart code with the rack extended: that would assign a false zero.
+
+CONFIGURATION
+Rack X44: Canivore CAN ID 26 (bus and ID confirmed by the operator).
+There is no intake roller controller in this test. The configured bus name is
+exactly "Canivore", matching the other installed mechanisms on that bus.
+Existing configured swerve and mechanism CAN addresses pass the collision test.
+Rack reduction: 64/14; pinion diameter: 1.751 inches; travel: 11 inches.
+Extension target: about 9.14 motor rotations; retracted target: 0.
+Motor inversion remains false, as specified by the original branch.
+Motion Magic cruise: 5.5 motor rotations/second; acceleration: 50 rotations/s^2.
+Position kP: 0.5; velocity feedforward kV: 0.12; normal neutral mode: brake.
+Supply/stator limits: 30/40 A. Encoder-based software limits remain enabled.
+DEPLOY_TEST_EXTEND_SECONDS in Constants.java sets the 3-second extension time.
+Three seconds starts when the motor is ready and includes travel time; retraction begins even if
+the rack has not reached full extension. Physical travel and direction must
+agree with these inherited values for the hardware test to behave correctly.
+
+TEST
+1. Fully retract the rack, then deploy/start the code. Keep its path clear.
+2. Check Intake/DeployConnected, Intake/Ready and configuration/zero status.
+3. Enable TELEOP: rack should extend immediately.
+4. At 3 seconds, rack should retract and remain there.
+5. Disable at any time to stop output. Re-enable teleop to run the cycle again.
+6. Confirm actual travel, direction, current and applied voltage. If motion is
+   reversed or the rack contacts a hard stop, disable and correct the settings.
+Dashboard: Intake/DeployPositionRotations, Intake/DeployTargetRotations,
+Intake/DeployConnected, Intake/Ready, Intake/DeployConfigurationStatus,
+Intake/ZeroStatus, Intake/BlockedReason, Intake/DeployControlStatus, Intake/TestStarted, Intake/DeployCANID, Intake/DeployCANBus, Intake/DeployAppliedVolts, Intake/DeployCurrentAmps. Temperature is recorded in Intake logs.
+
+VALIDATION
+Java 17 / WPILib 2026.2.1 / Phoenix 6 26.1.2.
+Tests cover teleop timing, one cycle then hold, repeat after re-enable, stop
+on disable/non-teleop/fault/coast, and immunity to old intake/shot commands.
+Existing shooter/indexer/driver tests and configured CAN address checks remain.
+No hardware deployment or physical verification was performed.
+
+TROUBLESHOOTING
+The old ID 24 did not address the actual rack motor at ID 26. This is corrected.
+The extension timer now waits for readiness so a delayed CAN connection cannot
+consume the outward test window. Missing non-motion telemetry does not gate
+position commands. If it still does not move, read Intake/BlockedReason first.
+No feedback: confirm the device is powered and appears as Talon FX 26 on Canivore.
+Configuration/zero failure: physically retract, fix the reported cause and
+restart code. DeployControlStatus shows the last position request result.
+If that is OK, compare position, commanded target, applied volts and current
+while watching for reversed motion, a mechanical bind, or an active device
+fault in Phoenix Tuner. Motor direction and mechanical travel are unverified.
+
+CONSOLE PRINTS
+[Intake motor] STARTUP prints bus/ID, configuration and startup-zero results.
+[Intake] EXTEND or RETRACT / HOLD prints on transitions and once per second
+in teleop, with target, measured position, voltage, current and last status.
+[Intake motor] SENT MotionMagic prints immediately after calling setControl,
+with the requested position and returned status. It prints when the target or
+status changes, or when resuming from stop. This confirms the API call happened;
+an OK return does not prove physical movement. Compare position/voltage/current.
+[Intake] STOP explains blocked motion; [Intake motor] STOP confirms a stop call
+when transitioning from position control. Check robot stdout/DS console output.

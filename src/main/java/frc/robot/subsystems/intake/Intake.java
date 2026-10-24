@@ -1,136 +1,123 @@
 package frc.robot.subsystems.intake;
 
 import org.littletonrobotics.junction.Logger;
-
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants.IntakeConstants;
 
+/** Rack-only hardware test: extend once on teleop enable, then retract and hold. */
 public class Intake extends SubsystemBase {
     private final IntakeIO io;
     private final IntakeIOInputsAutoLogged inputs = new IntakeIOInputsAutoLogged();
+    private boolean testStarted;
+    private boolean pitCoastMode;
+    private double enableTime;
+    private double target = IntakeConstants.RETRACTED_POSITION_ROTATIONS;
+    private String lastConsoleState = "";
+    private double nextConsolePrint;
 
     public enum State {
-        RETRACTED_STOPPED,
-        EXTENDED_STOPPED,
-        EXTENDED_SPINNING,
-        EXTENDED_OUTTAKING
+        RETRACTED_STOPPED, EXTENDED_STOPPED, EXTENDED_SPINNING, EXTENDED_OUTTAKING
     }
 
-    private State state = State.RETRACTED_STOPPED;
-    private boolean shootingOscillation = false;
-    private double oscillationStartSeconds = 0.0;
-    private boolean pitCoastMode = false;
+    public Intake(IntakeIO io) { this.io = io; }
 
-    public Intake(IntakeIO io) {
-        this.io = io;
-    }
-
-    public void activate() {
-        setExtendedSpinning();
-    }
-
-    public void deactivate() {
-        setRetracted();
-    }
-
-    /** Preserve the existing Driver 1 outtake command with the new rack intake. */
-    public void activateOuttake() {
-        setOperatingState(State.EXTENDED_OUTTAKING);
-    }
-
-    public void setExtendedSpinning() {
-        setOperatingState(State.EXTENDED_SPINNING);
-    }
-
-    public void setExtendedStopped() {
-        setOperatingState(State.EXTENDED_STOPPED);
-    }
-
-    public void setRetracted() {
-        setOperatingState(State.RETRACTED_STOPPED);
-    }
-
-    private void setOperatingState(State newState) {
-        state = newState;
-    }
-
-    /** Temporarily oscillates the rack for shooting, then restores the previous intake state. */
-    public void startShootingOscillation() {
-        if (!shootingOscillation) {
-            oscillationStartSeconds = Timer.getFPGATimestamp();
-            shootingOscillation = true;
-        }
-    }
-
-    public void stopShootingOscillation() {
-        if (shootingOscillation) {
-            shootingOscillation = false;
-        }
-    }
+    // Existing auto/shot callers cannot override this rack-only hardware test.
+    public void activate() {}
+    public void deactivate() {}
+    public void activateOuttake() {}
+    public void setExtendedSpinning() {}
+    public void setExtendedStopped() {}
+    public void setRetracted() {}
+    public void startShootingOscillation() {}
+    public void stopShootingOscillation() {}
+    public boolean isActive() { return false; }
+    public boolean isShootingOscillationActive() { return false; }
 
     public State getState() {
-        return state;
+        return target == IntakeConstants.EXTENDED_POSITION_ROTATIONS
+            ? State.EXTENDED_STOPPED : State.RETRACTED_STOPPED;
     }
 
-    public boolean isActive() {
-        return state == State.EXTENDED_SPINNING;
-    }
-
-    public boolean isShootingOscillationActive() {
-        return shootingOscillation;
+    public boolean isReady() {
+        return inputs.configured && inputs.deployConnected && inputs.deployHomed;
     }
 
     public boolean atDeployTarget() {
-        return Math.abs(inputs.deployPositionRotations - getDeployTargetRotations())
+        return isReady() && Math.abs(inputs.deployPositionRotations - target)
             <= IntakeConstants.DEPLOY_POSITION_TOLERANCE_ROTATIONS;
     }
 
     public void setPitCoastMode(boolean enabled) {
         pitCoastMode = enabled;
-        shootingOscillation = false;
-        state = State.RETRACTED_STOPPED;
         io.stop();
         io.setCoastMode(enabled);
-    }
-
-    private double getDeployTargetRotations() {
-        if (shootingOscillation) {
-            long halfPeriods = (long) ((Timer.getFPGATimestamp() - oscillationStartSeconds)
-                / IntakeConstants.SHOOT_OSCILLATION_HALF_PERIOD_SECONDS);
-            return halfPeriods % 2 == 0
-                ? IntakeConstants.SHOOT_OSCILLATION_FORWARD_POSITION_ROTATIONS
-                : IntakeConstants.SHOOT_OSCILLATION_REAR_POSITION_ROTATIONS;
-        }
-
-        return state == State.RETRACTED_STOPPED
-            ? IntakeConstants.RETRACTED_POSITION_ROTATIONS
-            : IntakeConstants.EXTENDED_POSITION_ROTATIONS;
     }
 
     @Override
     public void periodic() {
         io.updateInputs(inputs);
         Logger.processInputs("Intake", inputs);
-
-        Logger.recordOutput("Intake/PitCoastMode", pitCoastMode);
-        if (pitCoastMode) {
-            io.stop();
-            return;
+        boolean teleopEnabled = DriverStation.isTeleopEnabled();
+        if (!teleopEnabled) {
+            testStarted = false;
         }
-
-        double deployTargetRotations = getDeployTargetRotations();
-        io.setDeployPosition(deployTargetRotations);
-        double rollerRPM = !shootingOscillation && state == State.EXTENDED_SPINNING
-            ? IntakeConstants.ROLLER_RPM
-            : !shootingOscillation && state == State.EXTENDED_OUTTAKING
-                ? -IntakeConstants.ROLLER_RPM
-                : 0.0;
-        io.setRollerRPM(rollerRPM);
-
-        Logger.recordOutput("Intake/State", state.toString());
-        Logger.recordOutput("Intake/ShootingOscillation", shootingOscillation);
-        Logger.recordOutput("Intake/DeployTargetRotations", deployTargetRotations);
-        Logger.recordOutput("Intake/AtDeployTarget", atDeployTarget());
+        // Do not spend the entire outward test window waiting for CAN readiness.
+        if (teleopEnabled && !testStarted && !pitCoastMode && isReady()) {
+            enableTime = Timer.getFPGATimestamp();
+            testStarted = true;
+        }
+        // Three seconds includes outward travel, starting with the first ready command.
+        target = teleopEnabled && testStarted && Timer.getFPGATimestamp() - enableTime
+                < IntakeConstants.DEPLOY_TEST_EXTEND_SECONDS
+            ? IntakeConstants.EXTENDED_POSITION_ROTATIONS
+            : IntakeConstants.RETRACTED_POSITION_ROTATIONS;
+        if (teleopEnabled && testStarted && !pitCoastMode && isReady()) {
+            io.setDeployPosition(target);
+        } else {
+            io.stop();
+        }
+        io.setRollerRPM(0.0);
+        SmartDashboard.putBoolean("Intake/Ready", isReady());
+        SmartDashboard.putBoolean("Intake/DeployConnected", inputs.deployConnected);
+        SmartDashboard.putString("Intake/DeployConfigurationStatus", inputs.deployConfigurationStatus);
+        SmartDashboard.putString("Intake/ZeroStatus", inputs.zeroStatus);
+        String blockedReason = !teleopEnabled ? "Teleop is not enabled"
+            : pitCoastMode ? "Pit coast mode is on"
+            : !inputs.deployConnected ? "No rack feedback: check " + IntakeConstants.CAN_BUS
+                + " CAN ID " + IntakeConstants.DEPLOY_MOTOR_ID + ", power and wiring"
+            : !inputs.configured ? "Motor configuration failed: see configuration status; restart after fixing"
+            : !inputs.deployHomed ? "Startup zero failed or controller reset: retract and restart code"
+            : "None";
+        String consoleState = blockedReason.equals("None")
+            ? target == IntakeConstants.EXTENDED_POSITION_ROTATIONS ? "EXTEND" : "RETRACT / HOLD"
+            : "STOP: " + blockedReason;
+        double now = Timer.getFPGATimestamp();
+        // Print transitions immediately, plus one heartbeat/second while teleop is enabled.
+        if (!consoleState.equals(lastConsoleState) || (teleopEnabled && now >= nextConsolePrint)) {
+            System.out.printf(
+                "[Intake] %s | bus=%s id=%d target=%.3f rot position=%.3f rot "
+                    + "volts=%.2f amps=%.2f configured=%s zero=%s lastControl=%s%n",
+                consoleState, IntakeConstants.CAN_BUS, IntakeConstants.DEPLOY_MOTOR_ID,
+                target, inputs.deployPositionRotations, inputs.deployAppliedVolts,
+                inputs.deployCurrentAmps, inputs.deployConfigurationStatus,
+                inputs.zeroStatus, inputs.deployControlStatus);
+            lastConsoleState = consoleState;
+            nextConsolePrint = now + 1.0;
+        }
+        SmartDashboard.putString("Intake/BlockedReason", blockedReason);
+        SmartDashboard.putString("Intake/DeployControlStatus", inputs.deployControlStatus);
+        SmartDashboard.putNumber("Intake/DeployCANID", IntakeConstants.DEPLOY_MOTOR_ID);
+        SmartDashboard.putString("Intake/DeployCANBus", IntakeConstants.CAN_BUS);
+        SmartDashboard.putNumber("Intake/DeployAppliedVolts", inputs.deployAppliedVolts);
+        SmartDashboard.putNumber("Intake/DeployCurrentAmps", inputs.deployCurrentAmps);
+        SmartDashboard.putBoolean("Intake/TestStarted", testStarted);
+        Logger.recordOutput("Intake/BlockedReason", blockedReason);
+        SmartDashboard.putNumber("Intake/DeployPositionRotations", inputs.deployPositionRotations);
+        SmartDashboard.putNumber("Intake/DeployTargetRotations", target);
+        Logger.recordOutput("Intake/DeployTargetRotations", target);
+        Logger.recordOutput("Intake/State", getState().toString());
     }
 }

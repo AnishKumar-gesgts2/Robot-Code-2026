@@ -5,6 +5,14 @@ import org.littletonrobotics.junction.AutoLog;
 public interface IntakeIO {
     @AutoLog
     public static class IntakeIOInputs {
+        public boolean deployConnected = false;
+        public boolean rollerConnected = false;
+        public boolean configured = false;
+        public boolean deployHomed = false;
+        public String deployConfigurationStatus = "Not configured";
+        public String rollerConfigurationStatus = "Not configured";
+        public String zeroStatus = "Not zeroed";
+        public String deployControlStatus = "No request";
         public double deployPositionRotations = 0.0;
         public double deployVelocityRPS = 0.0;
         public double deployAppliedVolts = 0.0;
@@ -25,6 +33,6 @@ public interface IntakeIO {
 
     default void stop() {}
 
-    /** Select pit coast mode; intake rollers normally remain in coast mode as well. */
+    /** Select rack coast mode. */
     default void setCoastMode(boolean coast) {}
 }
