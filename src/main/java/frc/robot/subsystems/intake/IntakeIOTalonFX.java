@@ -20,6 +20,9 @@ public class IntakeIOTalonFX implements IntakeIO {
     private boolean homed;
     private String zeroStatus;
     private String controlStatus = "No request";
+    private double lastPrintedTarget = Double.NaN;
+    private String lastPrintedControlStatus = "";
+    private boolean stopped = true;
 
     public IntakeIOTalonFX() {
         TalonFXConfiguration config = new TalonFXConfiguration();
@@ -48,6 +51,9 @@ public class IntakeIOTalonFX implements IntakeIO {
             ? motor.setPosition(IntakeConstants.RETRACTED_POSITION_ROTATIONS) : status;
         homed = status.isOK() && zero.isOK();
         zeroStatus = zero.toString();
+        System.out.printf("[Intake motor] STARTUP bus=%s id=%d configuration=%s zero=%s homed=%s%n",
+            IntakeConstants.CAN_BUS, IntakeConstants.DEPLOY_MOTOR_ID,
+            configurationStatus, zeroStatus, homed);
         motor.hasResetOccurred();
         BaseStatusSignal.setUpdateFrequencyForAll(50.0, motor.getPosition(), motor.getVelocity(),
             motor.getMotorVoltage(), motor.getSupplyCurrent(), motor.getDeviceTemp());
@@ -80,16 +86,31 @@ public class IntakeIOTalonFX implements IntakeIO {
     @Override
     public void setDeployPosition(double rotations) {
         if (homed && configurationStatus.isOK() && Double.isFinite(rotations)) {
-            controlStatus = motor.setControl(request.withPosition(MathUtil.clamp(rotations,
-                IntakeConstants.RETRACTED_POSITION_ROTATIONS, IntakeConstants.EXTENDED_POSITION_ROTATIONS)))
-                .toString();
+            double commandedTarget = MathUtil.clamp(rotations,
+                IntakeConstants.RETRACTED_POSITION_ROTATIONS, IntakeConstants.EXTENDED_POSITION_ROTATIONS);
+            controlStatus = motor.setControl(request.withPosition(commandedTarget)).toString();
+            if (stopped || commandedTarget != lastPrintedTarget
+                    || !controlStatus.equals(lastPrintedControlStatus)) {
+                System.out.printf("[Intake motor] SENT MotionMagic position=%.3f rot bus=%s id=%d setControl=%s%n",
+                    commandedTarget, IntakeConstants.CAN_BUS, IntakeConstants.DEPLOY_MOTOR_ID, controlStatus);
+                lastPrintedTarget = commandedTarget;
+                lastPrintedControlStatus = controlStatus;
+            }
+            stopped = false;
         } else {
             stop();
         }
     }
 
     @Override
-    public void stop() { motor.stopMotor(); }
+    public void stop() {
+        motor.stopMotor();
+        if (!stopped) {
+            System.out.printf("[Intake motor] STOP sent bus=%s id=%d%n",
+                IntakeConstants.CAN_BUS, IntakeConstants.DEPLOY_MOTOR_ID);
+        }
+        stopped = true;
+    }
 
     @Override
     public void setCoastMode(boolean coast) {

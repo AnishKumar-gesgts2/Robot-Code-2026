@@ -66,3 +66,14 @@ restart code. DeployControlStatus shows the last position request result.
 If that is OK, compare position, commanded target, applied volts and current
 while watching for reversed motion, a mechanical bind, or an active device
 fault in Phoenix Tuner. Motor direction and mechanical travel are unverified.
+
+CONSOLE PRINTS
+[Intake motor] STARTUP prints bus/ID, configuration and startup-zero results.
+[Intake] EXTEND or RETRACT / HOLD prints on transitions and once per second
+in teleop, with target, measured position, voltage, current and last status.
+[Intake motor] SENT MotionMagic prints immediately after calling setControl,
+with the requested position and returned status. It prints when the target or
+status changes, or when resuming from stop. This confirms the API call happened;
+an OK return does not prove physical movement. Compare position/voltage/current.
+[Intake] STOP explains blocked motion; [Intake motor] STOP confirms a stop call
+when transitioning from position control. Check robot stdout/DS console output.

@@ -15,6 +15,8 @@ public class Intake extends SubsystemBase {
     private boolean pitCoastMode;
     private double enableTime;
     private double target = IntakeConstants.RETRACTED_POSITION_ROTATIONS;
+    private String lastConsoleState = "";
+    private double nextConsolePrint;
 
     public enum State {
         RETRACTED_STOPPED, EXTENDED_STOPPED, EXTENDED_SPINNING, EXTENDED_OUTTAKING
@@ -89,6 +91,22 @@ public class Intake extends SubsystemBase {
             : !inputs.configured ? "Motor configuration failed: see configuration status; restart after fixing"
             : !inputs.deployHomed ? "Startup zero failed or controller reset: retract and restart code"
             : "None";
+        String consoleState = blockedReason.equals("None")
+            ? target == IntakeConstants.EXTENDED_POSITION_ROTATIONS ? "EXTEND" : "RETRACT / HOLD"
+            : "STOP: " + blockedReason;
+        double now = Timer.getFPGATimestamp();
+        // Print transitions immediately, plus one heartbeat/second while teleop is enabled.
+        if (!consoleState.equals(lastConsoleState) || (teleopEnabled && now >= nextConsolePrint)) {
+            System.out.printf(
+                "[Intake] %s | bus=%s id=%d target=%.3f rot position=%.3f rot "
+                    + "volts=%.2f amps=%.2f configured=%s zero=%s lastControl=%s%n",
+                consoleState, IntakeConstants.CAN_BUS, IntakeConstants.DEPLOY_MOTOR_ID,
+                target, inputs.deployPositionRotations, inputs.deployAppliedVolts,
+                inputs.deployCurrentAmps, inputs.deployConfigurationStatus,
+                inputs.zeroStatus, inputs.deployControlStatus);
+            lastConsoleState = consoleState;
+            nextConsolePrint = now + 1.0;
+        }
         SmartDashboard.putString("Intake/BlockedReason", blockedReason);
         SmartDashboard.putString("Intake/DeployControlStatus", inputs.deployControlStatus);
         SmartDashboard.putNumber("Intake/DeployCANID", IntakeConstants.DEPLOY_MOTOR_ID);
